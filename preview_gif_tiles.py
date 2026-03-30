@@ -2,6 +2,7 @@ import argparse
 import re
 import sys
 import tkinter as tk
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,7 +14,7 @@ except ImportError as exc:
     ) from exc
 
 
-FILE_RE = re.compile(r"^(?P<prefix>.*?)(?P<row>[a-zA-Z])(?P<col>\d+)\.gif$")
+EMOJI_RE = re.compile(r":([^:]+):")
 
 
 @dataclass
@@ -33,9 +34,10 @@ def parse_args() -> argparse.Namespace:
         description="조각난 GIF 타일을 하나의 애니메이션으로 미리보기합니다."
     )
     parser.add_argument(
-        "--glob",
-        default="ai-*.gif",
-        help="타일 파일 패턴. 기본값: ai-*.gif",
+        "directory",
+        nargs="?",
+        default=".",
+        help="GIF 타일이 있는 디렉토리 (기본: 현재 디렉토리)",
     )
     parser.add_argument(
         "--scale",
@@ -51,24 +53,33 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def discover_layout(paths: list[Path]) -> tuple[dict[str, int], dict[str, int]]:
-    row_labels: set[str] = set()
-    col_labels: set[str] = set()
+def parse_emoji_txt(directory: Path) -> list[list[Path]]:
+    """emoji.txt에서 파일명 그리드를 파싱한다.
 
-    for path in paths:
-        match = FILE_RE.match(path.name)
-        if not match:
+    Returns:
+        2D 리스트 [[row0_files], [row1_files], ...]
+    """
+    emoji_path = directory / "emoji.txt"
+    if not emoji_path.exists():
+        raise FileNotFoundError(
+            f"'{directory}'에 emoji.txt가 없습니다.\n"
+            "ezcut으로 먼저 GIF를 분할하세요: py ezcut.py input.gif"
+        )
+
+    grid: list[list[Path]] = []
+    for line in emoji_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
             continue
-        row_labels.add(match.group("row").lower())
-        col_labels.add(match.group("col"))
+        names = EMOJI_RE.findall(line)
+        if not names:
+            continue
+        grid.append([directory / f"{name}.gif" for name in names])
 
-    if not row_labels or not col_labels:
-        raise ValueError("행/열 규칙을 파일명에서 찾지 못했습니다.")
+    if not grid:
+        raise ValueError("emoji.txt에서 이모지 이름을 찾지 못했습니다.")
 
-    row_map = {label: index for index, label in enumerate(sorted(row_labels))}
-    ordered_cols = sorted(col_labels, key=lambda value: int(value))
-    col_map = {label: index for index, label in enumerate(ordered_cols)}
-    return row_map, col_map
+    return grid
 
 
 def load_first_frame(image: Image.Image) -> tuple[Image.Image, int]:
@@ -77,47 +88,46 @@ def load_first_frame(image: Image.Image) -> tuple[Image.Image, int]:
     return frame, duration_ms
 
 
-def open_tiles(glob_pattern: str) -> tuple[list[Tile], int, int, tuple[int, int]]:
-    paths = sorted(Path(".").glob(glob_pattern))
-    if not paths:
-        raise FileNotFoundError(f"`{glob_pattern}` 패턴에 맞는 GIF를 찾지 못했습니다.")
+def open_tiles(grid: list[list[Path]]) -> tuple[list[Tile], int, int, tuple[int, int]]:
+    rows = len(grid)
+    cols = max(len(row) for row in grid)
 
-    row_map, col_map = discover_layout(paths)
+    sizes: list[tuple[int, int]] = []
     tiles: list[Tile] = []
-    tile_size: tuple[int, int] | None = None
 
-    for path in paths:
-        match = FILE_RE.match(path.name)
-        if not match:
-            continue
+    for row_idx, row_paths in enumerate(grid):
+        for col_idx, path in enumerate(row_paths):
+            if not path.exists():
+                print(f"Warning: {path} 파일이 없습니다. 건너뜁니다.", file=sys.stderr)
+                continue
 
-        image = Image.open(path)
-        frame, duration_ms = load_first_frame(image)
+            image = Image.open(path)
+            frame, duration_ms = load_first_frame(image)
+            sizes.append(frame.size)
 
-        if tile_size is None:
-            tile_size = frame.size
-        elif frame.size != tile_size:
-            raise ValueError(
-                f"타일 크기가 다릅니다: {path.name} = {frame.size}, expected = {tile_size}"
+            tiles.append(
+                Tile(
+                    path=path,
+                    row_index=row_idx,
+                    col_index=col_idx,
+                    image=image,
+                    frame_index=0,
+                    current_frame=frame,
+                    current_duration_ms=duration_ms,
+                    next_change_ms=duration_ms,
+                )
             )
 
-        tiles.append(
-            Tile(
-                path=path,
-                row_index=row_map[match.group("row").lower()],
-                col_index=col_map[match.group("col")],
-                image=image,
-                frame_index=0,
-                current_frame=frame,
-                current_duration_ms=duration_ms,
-                next_change_ms=duration_ms,
-            )
-        )
-
-    if tile_size is None:
+    if not tiles:
         raise ValueError("유효한 GIF 타일을 불러오지 못했습니다.")
 
-    return tiles, len(row_map), len(col_map), tile_size
+    # 가장 많이 등장하는 크기를 기준으로 통일
+    tile_size = Counter(sizes).most_common(1)[0][0]
+    for tile in tiles:
+        if tile.current_frame.size != tile_size:
+            tile.current_frame = tile.current_frame.resize(tile_size, Image.Resampling.LANCZOS)
+
+    return tiles, rows, cols, tile_size
 
 
 def reset_tile(tile: Tile) -> None:
@@ -128,7 +138,7 @@ def reset_tile(tile: Tile) -> None:
     tile.next_change_ms = tile.current_duration_ms
 
 
-def advance_tile(tile: Tile, event_time_ms: int) -> bool:
+def advance_tile(tile: Tile, event_time_ms: int, tile_size: tuple[int, int]) -> bool:
     try:
         tile.image.seek(tile.frame_index + 1)
     except EOFError:
@@ -137,6 +147,8 @@ def advance_tile(tile: Tile, event_time_ms: int) -> bool:
 
     tile.frame_index += 1
     tile.current_frame, tile.current_duration_ms = load_first_frame(tile.image)
+    if tile.current_frame.size != tile_size:
+        tile.current_frame = tile.current_frame.resize(tile_size, Image.Resampling.LANCZOS)
     tile.next_change_ms = event_time_ms + tile.current_duration_ms
     return True
 
@@ -155,6 +167,7 @@ class PreviewApp:
         self.rows = rows
         self.cols = cols
         self.tile_width, self.tile_height = tile_size
+        self.tile_size = tile_size
         self.full_width = cols * self.tile_width
         self.full_height = rows * self.tile_height
         self.scale = scale
@@ -241,7 +254,7 @@ class PreviewApp:
 
         self.timeline_ms = event_time
         for tile in self.tiles:
-            if tile.next_change_ms == event_time and advance_tile(tile, event_time):
+            if tile.next_change_ms == event_time and advance_tile(tile, event_time, self.tile_size):
                 self.paste_tile(tile)
 
         self.render_frame()
@@ -275,7 +288,14 @@ class PreviewApp:
 
 def main() -> None:
     args = parse_args()
-    tiles, rows, cols, tile_size = open_tiles(args.glob)
+    directory = Path(args.directory)
+
+    if not directory.is_dir():
+        sys.exit(f"Error: '{directory}'는 유효한 디렉토리가 아닙니다.")
+
+    grid = parse_emoji_txt(directory)
+    tiles, rows, cols, tile_size = open_tiles(grid)
+
     app = PreviewApp(
         tiles=tiles,
         rows=rows,
