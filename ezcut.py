@@ -89,28 +89,22 @@ def extract_frames(im):
     return frames
 
 
-def save_piece(images, durations, output_path, loop, colors):
-    if colors < 256:
-        quantized = [im.quantize(colors=colors, dither=Image.Dither.FLOYDSTEINBERG)
-                     for im in images]
+def save_piece(images, durations, output_path, loop):
+    if len(images) == 1:
+        images[0].save(output_path, format="GIF")
     else:
-        quantized = images
-
-    if len(quantized) == 1:
-        quantized[0].save(output_path, format="GIF")
-    else:
-        quantized[0].save(
+        images[0].save(
             output_path,
             format="GIF",
             save_all=True,
-            append_images=quantized[1:],
+            append_images=images[1:],
             duration=durations,
             loop=loop,
             disposal=2,
         )
 
 
-def apply_strategy(crop_frames, target_size, colors, frame_step):
+def apply_frame_step(crop_frames, target_size, frame_step):
     durations = [max(dur, 20) for _, dur in crop_frames]
     images = [f.resize((target_size, target_size), Image.LANCZOS)
               for f, _ in crop_frames]
@@ -122,37 +116,17 @@ def apply_strategy(crop_frames, target_size, colors, frame_step):
     return images, durations
 
 
-def build_strategies():
-    # 1) 원본 (256색)
-    # 2) 128색
-    # 3) 128색 + 프레임 스킵 2, 3, 4, ...
-    strategies = [(256, 1), (128, 1)]
-    for step in range(2, 11):
-        strategies.append((128, step))
-    return strategies
-
-
-def _strategy_label(colors, frame_step):
-    label = f"{colors}colors"
-    if frame_step > 1:
-        label += f", frame 1/{frame_step}"
-    return label
-
-
 def find_strategy(pieces_crop_frames, output_dir, filenames, loop, target_size):
-    strategies = build_strategies()
     total = len(pieces_crop_frames)
-    import tempfile
 
-    # 1단계: 원본(256색)으로 전부 저장하면서 최악 조각 찾기
-    print("  Pass 1: saving raw...")
+    # Pass 1: 원본으로 전부 저장하면서 최악 조각 찾기
+    print("  Pass 1: saving...")
     worst_idx = 0
     worst_size = 0
-    colors, frame_step = strategies[0]
     for idx, (crop_frames, filename) in enumerate(zip(pieces_crop_frames, filenames)):
-        images, durations = apply_strategy(crop_frames, target_size, colors, frame_step)
+        images, durations = apply_frame_step(crop_frames, target_size, 1)
         path = os.path.join(output_dir, filename)
-        save_piece(images, durations, path, loop, colors)
+        save_piece(images, durations, path, loop)
         size = os.path.getsize(path)
         if size > worst_size:
             worst_size = size
@@ -161,38 +135,35 @@ def find_strategy(pieces_crop_frames, output_dir, filenames, loop, target_size):
     print()
 
     if worst_size <= MAX_FILE_SIZE:
-        print(f"  -> {_strategy_label(colors, frame_step)} OK (max {worst_size // 1024}KB)")
+        print(f"  -> OK (max {worst_size // 1024}KB)")
         return
 
-    print(f"  -> max {worst_size // 1024}KB, need optimization...")
+    print(f"  -> max {worst_size // 1024}KB, need frame skip...")
 
-    # 2단계: 최악 조각으로 전략 탐색
+    # 최악 조각으로 프레임 스킵 단계 탐색
     worst_crop = pieces_crop_frames[worst_idx]
     tmp_path = os.path.join(output_dir, "_test.gif")
-    best_strategy = strategies[-1]
+    best_step = 1
 
-    for colors, frame_step in strategies[1:]:
-        images, durations = apply_strategy(worst_crop, target_size, colors, frame_step)
-        save_piece(images, durations, tmp_path, loop, colors)
+    for step in range(2, 11):
+        images, durations = apply_frame_step(worst_crop, target_size, step)
+        save_piece(images, durations, tmp_path, loop)
         size = os.path.getsize(tmp_path)
-        label = _strategy_label(colors, frame_step)
         if size <= MAX_FILE_SIZE:
-            print(f"  -> {label} fits worst piece ({size // 1024}KB)")
-            best_strategy = (colors, frame_step)
+            print(f"  -> frame 1/{step} fits ({size // 1024}KB)")
+            best_step = step
             break
-        print(f"  -> {label}: {size // 1024}KB, still over")
+        print(f"  -> frame 1/{step}: {size // 1024}KB, still over")
 
     if os.path.exists(tmp_path):
         os.remove(tmp_path)
 
-    # 3단계: 선택된 전략으로 전체 저장
-    colors, frame_step = best_strategy
-    label = _strategy_label(colors, frame_step)
-    print(f"  Pass 2: saving all with {label}...")
+    # Pass 2: 선택된 프레임 스킵으로 전체 저장
+    print(f"  Pass 2: saving all with frame 1/{best_step}...")
     for idx, (crop_frames, filename) in enumerate(zip(pieces_crop_frames, filenames)):
-        images, durations = apply_strategy(crop_frames, target_size, colors, frame_step)
+        images, durations = apply_frame_step(crop_frames, target_size, best_step)
         path = os.path.join(output_dir, filename)
-        save_piece(images, durations, path, loop, colors)
+        save_piece(images, durations, path, loop)
         print(f"\r    [{idx + 1}/{total}] {filename}", end="", flush=True)
     print()
 
