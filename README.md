@@ -39,20 +39,20 @@ python -m pip install -e .
 
 ```powershell
 # 기본 사용
-py .\ezcut.py .\input.gif
+py .\ezcut.py .\{input}.gif
 
 # 16x9로 강제 분할, 파일명 접두사 ai, 출력 폴더 지정
-py .\ezcut.py .\ai.gif --cols 16 --rows 9 -n ai -o .\ai_pieces
+py .\ezcut.py .\{input}.gif --cols 16 --rows 9 -n {output-prefix} -o .\{output-dir}
 ```
 
 ### Bash
 
 ```bash
 # 기본 사용
-python ./ezcut.py ./input.gif
+python ./ezcut.py ./{input}.gif
 
 # 16x9로 강제 분할, 파일명 접두사 ai, 출력 폴더 지정
-python ./ezcut.py ./ai.gif --cols 16 --rows 9 -n ai -o ./ai_pieces
+python ./ezcut.py ./{input}.gif --cols 16 --rows 9 -n {output-prefix} -o ./{output-dir}
 ```
 
 지원 옵션:
@@ -66,12 +66,12 @@ python ./ezcut.py ./ai.gif --cols 16 --rows 9 -n ai -o ./ai_pieces
 예를 들어 `1920x1080` GIF를 `16 x 9`로 분할하면 다음과 같은 파일이 만들어집니다.
 
 ```text
-ai_pieces/
-  ai-a01.gif
-  ai-a02.gif
-  ai-a03.gif
+{output-dir}/
+  {output-prefix}-a01.gif
+  {output-prefix}-a02.gif
+  {output-prefix}-a03.gif
   ...
-  ai-i16.gif
+  {output-prefix}-i16.gif
   emoji.txt
 ```
 
@@ -79,7 +79,7 @@ ai_pieces/
 
 - 행: `a`, `b`, `c` ...
 - 열: `01`, `02`, `03` ...
-- 형식: `{name}-{row}{col}.gif`
+- 형식: `{output-prefix}-{row}{col}.gif`
 
 ## 2. 타일 미리보기
 
@@ -89,20 +89,20 @@ ai_pieces/
 
 ```powershell
 # 기본 미리보기
-py .\preview_gif_tiles.py .\ai_pieces
+py .\preview_gif_tiles.py .\{output-dir}
 
 # 반 크기로 미리보기
-py .\preview_gif_tiles.py .\ai_pieces --scale 0.5
+py .\preview_gif_tiles.py .\{output-dir} --scale 0.5
 ```
 
 ### Bash
 
 ```bash
 # 기본 미리보기
-python ./preview_gif_tiles.py ./ai_pieces
+python ./preview_gif_tiles.py ./{output-dir}
 
 # 반 크기로 미리보기
-python ./preview_gif_tiles.py ./ai_pieces --scale 0.5
+python ./preview_gif_tiles.py ./{output-dir} --scale 0.5
 ```
 
 지원 옵션:
@@ -133,26 +133,26 @@ python ./preview_gif_tiles.py ./ai_pieces --scale 0.5
 
 ```powershell
 # 1개만 테스트
-py .\mattermost_upload.py .\ai_pieces --limit 1
+py .\mattermost_upload.py .\{output-dir} --limit 1
 
 # a02부터 끝까지 업로드
-py .\mattermost_upload.py .\ai_pieces --start-index 2
+py .\mattermost_upload.py .\{output-dir} --start-index 2
 
 # 로그인 세션을 재사용할 전용 크롬 프로필 사용
-py .\mattermost_upload.py .\ai_pieces --start-index 2 --user-data-dir .\chrome-meeting-profile
+py .\mattermost_upload.py .\{output-dir} --start-index 2 --user-data-dir .\chrome-meeting-profile
 ```
 
 ### Bash
 
 ```bash
 # 1개만 테스트
-python ./mattermost_upload.py ./ai_pieces --limit 1
+python ./mattermost_upload.py ./{output-dir} --limit 1
 
 # a02부터 끝까지 업로드
-python ./mattermost_upload.py ./ai_pieces --start-index 2
+python ./mattermost_upload.py ./{output-dir} --start-index 2
 
 # 로그인 세션을 재사용할 전용 크롬 프로필 사용
-python ./mattermost_upload.py ./ai_pieces --start-index 2 --user-data-dir ./chrome-meeting-profile
+python ./mattermost_upload.py ./{output-dir} --start-index 2 --user-data-dir ./chrome-meeting-profile
 ```
 
 지원 옵션:
@@ -170,30 +170,30 @@ python ./mattermost_upload.py ./ai_pieces --start-index 2 --user-data-dir ./chro
 
 ```powershell
 # 1) 원본 GIF 분할
-py .\ezcut.py .\ai.gif --cols 16 --rows 9 -n ai -o .\ai_pieces
+py .\ezcut.py .\{input}.gif --cols 16 --rows 9 -n {output-prefix} -o .\{output-dir}
 
 # 2) 전체 화면 미리보기
-py .\preview_gif_tiles.py .\ai_pieces --scale 0.5
+py .\preview_gif_tiles.py .\{output-dir} --scale 0.5
 
 # 3) 업로드 테스트 1개
-py .\mattermost_upload.py .\ai_pieces --limit 1
+py .\mattermost_upload.py .\{output-dir} --limit 1
 
 # 4) a02부터 끝까지 업로드
-py .\mattermost_upload.py .\ai_pieces --start-index 2 --user-data-dir .\chrome-meeting-profile
+py .\mattermost_upload.py .\{output-dir} --start-index 2 --user-data-dir .\chrome-meeting-profile
 ```
 
 ### Bash
 
 ```bash
 # 1) 원본 GIF 분할
-python ./ezcut.py ./ai.gif --cols 16 --rows 9 -n ai -o ./ai_pieces
+python ./ezcut.py ./{input}.gif --cols 16 --rows 9 -n {output-prefix} -o ./{output-dir}
 
 # 2) 전체 화면 미리보기
-python ./preview_gif_tiles.py ./ai_pieces --scale 0.5
+python ./preview_gif_tiles.py ./{output-dir} --scale 0.5
 
 # 3) 업로드 테스트 1개
-python ./mattermost_upload.py ./ai_pieces --limit 1
+python ./mattermost_upload.py ./{output-dir} --limit 1
 
 # 4) a02부터 끝까지 업로드
-python ./mattermost_upload.py ./ai_pieces --start-index 2 --user-data-dir ./chrome-meeting-profile
+python ./mattermost_upload.py ./{output-dir} --start-index 2 --user-data-dir ./chrome-meeting-profile
 ```
