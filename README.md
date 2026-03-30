@@ -28,6 +28,19 @@ uv sync
 uv run pre-commit install
 ```
 
+## 코드 스타일 및 린트 관리 (Ruff)
+
+본 프로젝트는 [Ruff](https://docs.astral.sh/ruff/)를 사용하여 코드 스타일과 품질을 관리합니다. 커밋 시 자동으로 체크되지만, 수동으로 전체 프로젝트를 교정하고 싶을 때는 아래 명령어를 사용합니다.
+
+```bash
+# 코드 포맷팅 및 린트 자동 수정 (가장 권장하는 방법)
+uv run pre-commit run --all-files
+
+# 또는 개별 실행
+uv run ruff format .      # 포맷팅만 수행
+uv run ruff check --fix .   # 린트 오류 자동 수정 및 임포트 정렬
+```
+
 ## 1. GIF 분할
 
 기본적으로 입력 GIF의 가로/세로 비율을 보고 그리드를 계산한 뒤, 각 조각을 정사각형 GIF로 저장합니다.
