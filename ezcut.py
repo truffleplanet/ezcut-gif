@@ -30,6 +30,10 @@ def parse_args():
         "-n", "--name", default=None,
         help="이모지 베이스 이름 (기본: 입력파일명). 이모지 텍스트 파일 생성에 사용",
     )
+    parser.add_argument(
+        "-m", "--max-size", type=int, default=None,
+        help="조각당 최대 파일 용량 (KB 단위, 기본: 512)",
+    )
     return parser.parse_args()
 
 
@@ -116,7 +120,7 @@ def apply_frame_step(crop_frames, target_size, frame_step):
     return images, durations
 
 
-def find_strategy(pieces_crop_frames, output_dir, filenames, loop, target_size):
+def find_strategy(pieces_crop_frames, output_dir, filenames, loop, target_size, max_file_size):
     total = len(pieces_crop_frames)
 
     # Pass 1: 원본으로 전부 저장하면서 최악 조각 찾기
@@ -134,7 +138,7 @@ def find_strategy(pieces_crop_frames, output_dir, filenames, loop, target_size):
         print(f"\r    [{idx + 1}/{total}] {filename}", end="", flush=True)
     print()
 
-    if worst_size <= MAX_FILE_SIZE:
+    if worst_size <= max_file_size:
         print(f"  -> OK (max {worst_size // 1024}KB)")
         return
 
@@ -149,7 +153,7 @@ def find_strategy(pieces_crop_frames, output_dir, filenames, loop, target_size):
         images, durations = apply_frame_step(worst_crop, target_size, step)
         save_piece(images, durations, tmp_path, loop)
         size = os.path.getsize(tmp_path)
-        if size <= MAX_FILE_SIZE:
+        if size <= max_file_size:
             print(f"  -> frame 1/{step} fits ({size // 1024}KB)")
             best_step = step
             break
@@ -223,7 +227,8 @@ def main():
         filenames.append(f"{emoji_name}-{piece_id(row, col)}.gif")
 
     # 최적 전략 탐색 + 저장
-    find_strategy(pieces_crop_frames, output_dir, filenames, loop, args.size)
+    max_file_size = (args.max_size * 1024) if args.max_size else MAX_FILE_SIZE
+    find_strategy(pieces_crop_frames, output_dir, filenames, loop, args.size, max_file_size)
 
     # 이모지 텍스트 생성
     emoji_lines = []
