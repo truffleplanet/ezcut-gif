@@ -99,27 +99,25 @@ gaguya_pieces/
 
 ## 용량 최적화
 
-출력 GIF 하나가 너무 커지면 내부적으로 다음 전략을 순서대로 시도합니다.
+출력 GIF 하나가 512KB를 넘으면 프레임 스킵을 자동으로 적용합니다.
 
-1. 256색 원본
-2. 128색
-3. 128색 + 프레임 스킵
-
-가장 큰 조각이 제한 용량 안에 들어오는 전략을 찾은 뒤, 같은 전략으로 전체 타일을 저장합니다.
+가장 큰 조각 기준으로 최적 스킵 단계를 찾은 뒤, 같은 전략으로 전체 타일을 저장합니다.
 
 ## `preview_gif_tiles.py`
 
 분할된 GIF들을 다시 붙여서 전체 애니메이션을 눈으로 확인하는 로컬 미리보기 도구입니다.
 
+출력 디렉토리의 `emoji.txt`를 읽어 그리드 구조와 파일 목록을 자동으로 파악합니다.
+
 기본 예시:
 
 ```bash
-py .\preview_gif_tiles.py --glob "ai-*.gif" --scale 0.5
+py .\preview_gif_tiles.py gaguya_pieces/
 ```
 
 지원 옵션:
 
-- `--glob`: 타일 파일 패턴. 기본값 `ai-*.gif`
+- `directory` (positional): GIF 타일이 있는 디렉토리. 기본값 `.` (현재 디렉토리)
 - `--scale`: 표시 배율. 지정하지 않으면 화면 크기에 맞춰 자동 조절
 - `--background`: 배경색. 기본값 `#000000`
 
@@ -135,9 +133,6 @@ py .\preview_gif_tiles.py --glob "ai-*.gif" --scale 0.5
 # 1) 원본 GIF 분할
 py .\ezcut.py .\gaguya.gif --cols 16 --rows 9 -n ai
 
-# 2) 생성된 폴더로 이동
-cd .\gaguya_pieces
-
-# 3) 이어붙인 전체 화면 미리보기
-py ..\preview_gif_tiles.py --glob "ai-*.gif" --scale 0.5
+# 2) 이어붙인 전체 화면 미리보기
+py .\preview_gif_tiles.py gaguya_pieces/
 ```
