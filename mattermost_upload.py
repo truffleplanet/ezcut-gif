@@ -39,8 +39,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pause",
         type=float,
-        default=0.7,
-        help="업로드 사이 대기 시간(초). 기본값 0.7",
+        default=0.3,
+        help="업로드 사이 대기 시간(초). 기본값 0.3",
     )
     parser.add_argument(
         "--headless",
