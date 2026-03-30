@@ -1,13 +1,16 @@
 [build-system]
 requires = ["hatchling"]
-build-backend = "hatchling.backends"
+build-backend = "hatchling.build"
 
 [project]
 name = "ezcut"
 version = "0.1.0"
 description = "GIF를 그리드로 분할하여 각 조각을 개별 GIF로 저장하는 CLI 도구"
 requires-python = ">=3.9"
-dependencies = ["Pillow>=9.0"]
+dependencies = [
+    "Pillow>=9.0",
+    "selenium>=4.41.0",
+]
 
 [project.scripts]
 ezcut = "ezcut:main"

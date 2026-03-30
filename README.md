@@ -136,3 +136,45 @@ py .\ezcut.py .\gaguya.gif --cols 16 --rows 9 -n ai
 # 2) 이어붙인 전체 화면 미리보기
 py .\preview_gif_tiles.py gaguya_pieces/
 ```
+
+## `mattermost_upload.py`
+
+분할된 GIF 타일을 Mattermost 커스텀 이모지 등록 페이지에 파일명 순서대로 업로드하는 Selenium 스크립트입니다.
+
+스크립트 위치:
+
+```text
+C:\Users\SSAFY\Desktop\ai_pieces\mattermost_upload.py
+```
+
+`ezcut-gif` 폴더에서 실행하는 예시:
+
+```bash
+# 1개만 테스트
+py ..\mattermost_upload.py "..\ai_pieces" --limit 1
+
+# a02부터 끝까지 업로드
+py ..\mattermost_upload.py "..\ai_pieces" --start-index 2
+```
+
+로그인을 유지할 전용 크롬 프로필을 쓰려면:
+
+```bash
+py ..\mattermost_upload.py "..\ai_pieces" --start-index 2 --user-data-dir "..\chrome-meeting-profile"
+```
+
+지원 옵션:
+
+- `directory` (positional): 업로드할 이미지 폴더
+- `--start-index`: 몇 번째 파일부터 시작할지 지정
+- `--limit`: 업로드 개수 제한
+- `--pause`: 업로드 사이 대기 시간(초)
+- `--add-path`: 이모지 추가 페이지 상대경로 또는 전체 URL
+- `--user-data-dir`: 로그인 세션을 재사용할 크롬 프로필 폴더
+
+실행 흐름:
+
+1. 크롬이 열립니다.
+2. 로그인 안 되어 있으면 직접 로그인합니다.
+3. 터미널에서 Enter를 누릅니다.
+4. 스크립트가 `input#name`, `input#select-emoji`, `저장` 버튼을 순서대로 처리합니다.
