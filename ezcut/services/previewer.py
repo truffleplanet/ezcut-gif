@@ -1,4 +1,10 @@
+from collections import Counter
+
+from PIL import Image
+
 from ezcut.store.models import PreviewConfig, Tile
+from ezcut.utils.emoji_txt import parse_emoji_txt
+from ezcut.utils.frames import load_first_frame
 
 
 class Previewer:
@@ -19,7 +25,47 @@ class Previewer:
 
     def load(self) -> None:
         """emoji.txt와 타일 GIF를 불러온다."""
-        raise NotImplementedError
+        grid = parse_emoji_txt(self.directory)
+        self.rows = len(grid)
+        self.cols = max(len(row) for row in grid)
+
+        sizes: list[tuple[int, int]] = []
+        tiles: list[Tile] = []
+
+        for row_index, row_paths in enumerate(grid):
+            for col_index, path in enumerate(row_paths):
+                if not path.exists():
+                    continue
+
+                image = Image.open(path)
+                frame, duration_ms = load_first_frame(image)
+                sizes.append(frame.size)
+
+                tiles.append(
+                    Tile(
+                        path=path,
+                        row_index=row_index,
+                        col_index=col_index,
+                        image=image,
+                        frame_index=0,
+                        current_frame=frame,
+                        current_duration_ms=duration_ms,
+                        next_change_ms=duration_ms,
+                    )
+                )
+
+        if not tiles:
+            raise ValueError("유효한 GIF 타일을 불러오지 못했습니다.")
+
+        tile_size = Counter(sizes).most_common(1)[0][0]
+        for tile in tiles:
+            if tile.current_frame.size != tile_size:
+                tile.current_frame = tile.current_frame.resize(
+                    tile_size, Image.Resampling.LANCZOS
+                )
+
+        self.tiles = tiles
+        self.tile_size = tile_size
 
     def reset_tile(self, tile: Tile) -> None:
         """타일을 첫 프레임 상태로 되돌린다."""
