@@ -69,16 +69,45 @@ class Previewer:
 
     def reset_tile(self, tile: Tile) -> None:
         """타일을 첫 프레임 상태로 되돌린다."""
-        raise NotImplementedError
+        tile.image.close()
+        tile.image = Image.open(tile.path)
+        tile.frame_index = 0
+        tile.current_frame, tile.current_duration_ms = load_first_frame(tile.image)
+        if tile.current_frame.size != self.tile_size:
+            tile.current_frame = tile.current_frame.resize(
+                self.tile_size, Image.Resampling.LANCZOS
+            )
+        tile.next_change_ms = tile.current_duration_ms
 
     def advance_tile(self, tile: Tile, event_time_ms: int) -> bool:
         """타일을 다음 프레임으로 진행한다."""
-        raise NotImplementedError
+        try:
+            tile.image.seek(tile.frame_index + 1)
+        except EOFError:
+            tile.next_change_ms = None
+            return False
+
+        tile.frame_index += 1
+        tile.current_frame, tile.current_duration_ms = load_first_frame(tile.image)
+        if tile.current_frame.size != self.tile_size:
+            tile.current_frame = tile.current_frame.resize(
+                self.tile_size, Image.Resampling.LANCZOS
+            )
+        tile.next_change_ms = event_time_ms + tile.current_duration_ms
+        return True
 
     def reset_all(self) -> None:
         """모든 타일을 첫 프레임 상태로 되돌린다."""
-        raise NotImplementedError
+        for tile in self.tiles:
+            self.reset_tile(tile)
 
     def next_event_ms(self) -> int | None:
         """다음 프레임 전환 시각을 반환한다."""
-        raise NotImplementedError
+        pending = [
+            tile.next_change_ms
+            for tile in self.tiles
+            if tile.next_change_ms is not None
+        ]
+        if not pending:
+            return None
+        return min(pending)
