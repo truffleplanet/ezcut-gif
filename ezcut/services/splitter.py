@@ -7,6 +7,7 @@ from PIL import Image
 from ..repository.history import HistoryEntry, HistoryRepository
 from ..store.models import SplitConfig, SplitResult
 from ..store.state import ProgressCallback
+from ..utils.emoji_txt import write_emoji_txt
 from ..utils.frames import extract_frames
 from ..utils.grid import resolve_grid
 from ..utils.naming import normalize_emoji_name, piece_id
@@ -70,6 +71,14 @@ class Splitter:
         frame_step = self._save_optimized(cropped_tiles, filenames, output_dir, loop)
 
         self._report(3, 4, "완료 처리 중...")
+        emoji_txt_path = write_emoji_txt(
+            output_dir=output_dir,
+            emoji_name=emoji_name,
+            rows=rows,
+            cols=cols,
+            piece_id_factory=lambda row, col: piece_id(row, col, col_pad),
+        )
+
         if self._history is not None:
             self._history.add(
                 HistoryEntry(
@@ -93,7 +102,7 @@ class Splitter:
             cols=cols,
             rows=rows,
             frame_step=frame_step,
-            emoji_txt_path=output_dir / "emoji.txt",
+            emoji_txt_path=emoji_txt_path,
         )
 
     def _open_and_validate(self) -> Image.Image:

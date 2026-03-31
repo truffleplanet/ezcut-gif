@@ -1,27 +1,12 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
 from pathlib import Path
+
+from ezcut.store.models import AppConfig
 
 CONFIG_DIR = Path.home() / ".config" / "ezcut"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
-
-
-@dataclass(slots=True)
-class AppConfig:
-    # Mattermost 기본설정
-    mattermost_base_url: str = "https://meeting.ssafy.com"
-    mattermost_add_path: str = "s14public/emoji/add"
-    mattermost_login_mode: str = "manual"  # manual | auto
-
-    # Chrome 기본설정
-    chrome_user_data_dir: str = ""
-    chrome_profile: str = ""
-
-    # Split 기본설정
-    default_tile_size: int = 128
-    default_max_file_size_kb: int = 512  # KB
 
 
 class ConfigRepository:
