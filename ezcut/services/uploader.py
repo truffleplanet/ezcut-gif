@@ -136,7 +136,7 @@ class Uploader:
         print("브라우저가 열렸습니다.")
         print("meeting.ssafy 로그인 상태가 아니라면 직접 로그인한 뒤 Enter를 누르세요.")
         input()
-        self._wait_until_add_page(driver, wait, add_url)
+        self._wait_until_add_page(driver, wait)
 
     def _auto_login(self, driver, wait, add_url: str) -> None:
         """저장된 자격 증명으로 자동 로그인을 시도한다."""
@@ -166,26 +166,21 @@ class Uploader:
         password_input.send_keys(password)
         submit_button.click()
 
-        self._wait_until_add_page(driver, wait, add_url)
+        self._wait_until_add_page(driver, wait)
 
     def _open_browser_view(self, driver, wait, add_url: str) -> None:
         """랜딩 페이지에서 브라우저 보기로 진입한다."""
         driver.get(add_url)
 
-        if self._is_add_page_ready(driver):
-            return
-
-        browser_view_buttons = driver.find_elements(
-            By.XPATH,
-            BROWSER_VIEW_XPATH,
-        )
-        if not browser_view_buttons:
+        page_state = self._wait_for_page_state(wait)
+        if page_state in {"add", "login"}:
             return
 
         browser_view_button = wait.until(
             EC.element_to_be_clickable((By.XPATH, BROWSER_VIEW_XPATH))
         )
         browser_view_button.click()
+        self._wait_for_page_state(wait)
 
     def _open_add_page(self, driver, wait, add_url: str) -> None:
         """이모지 업로드 페이지를 연다."""
@@ -278,10 +273,8 @@ class Uploader:
         except TimeoutException as error:
             raise RuntimeError("Mattermost 로그인 폼을 찾지 못했습니다.") from error
 
-    def _wait_until_add_page(self, driver, wait, add_url: str) -> None:
+    def _wait_until_add_page(self, driver, wait) -> None:
         """업로드 페이지가 열릴 때까지 대기한다."""
-        driver.get(add_url)
-
         try:
             wait.until(lambda current_driver: self._is_add_page_ready(current_driver))
         except TimeoutException as error:
@@ -294,3 +287,23 @@ class Uploader:
         ) and bool(
             driver.find_elements(By.CSS_SELECTOR, self.config.page.file_input_selector)
         )
+
+    def _wait_for_page_state(self, wait) -> str:
+        """현재 페이지 상태를 판별한다."""
+        try:
+            return wait.until(
+                lambda driver: (
+                    "add"
+                    if self._is_add_page_ready(driver)
+                    else "login"
+                    if driver.find_elements(By.CSS_SELECTOR, LOGIN_EMAIL_SELECTOR)
+                    and driver.find_elements(By.CSS_SELECTOR, LOGIN_PASSWORD_SELECTOR)
+                    else "browser_view"
+                    if driver.find_elements(By.XPATH, BROWSER_VIEW_XPATH)
+                    else False
+                )
+            )
+        except TimeoutException as error:
+            raise RuntimeError(
+                "Mattermost 로그인 페이지 또는 업로드 페이지를 찾지 못했습니다."
+            ) from error
