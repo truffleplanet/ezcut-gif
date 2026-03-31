@@ -1,12 +1,19 @@
+import re
 import tkinter as tk
 from pathlib import Path
+from threading import Thread
 from tkinter import filedialog, ttk
 
+from ezcut.services import Uploader
+from ezcut.store.models import UploadConfig
 from ezcut.store.state import UploadFormState, UploadTaskState
+from ezcut.utils.emoji_txt import list_image_files
 
 
 class UploadTab:
     """Upload 탭 UI를 구성한다."""
+
+    FAILED_INDEX_RE = re.compile(r"-([a-z]\d+)$", re.IGNORECASE)
 
     def __init__(
         self,
@@ -34,9 +41,11 @@ class UploadTab:
 
         self.status_var = tk.StringVar(value=self._status_text())
         self.error_var = tk.StringVar(value=self.task_state.error_message or "-")
+        self.failed_indices_var = tk.StringVar(value="-")
 
         self._build_form()
         self._bind_state()
+        self.refresh_task_state()
 
     def _build_form(self) -> None:
         ttk.Label(self.frame, text="Upload", style="Title.TLabel").grid(
@@ -88,8 +97,18 @@ class UploadTab:
             variable=self.headless_var,
         ).grid(row=8, column=1, sticky="w", pady=(4, 0))
 
+        actions = ttk.Frame(self.frame)
+        actions.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+
+        self.run_button = ttk.Button(
+            actions,
+            text="업로드 시작",
+            command=self._start_upload,
+        )
+        self.run_button.pack(anchor="e")
+
         status = ttk.LabelFrame(self.frame, text="작업 상태", padding=12)
-        status.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+        status.grid(row=4, column=0, sticky="ew", pady=(12, 0))
         status.columnconfigure(1, weight=1)
 
         ttk.Label(status, text="상태").grid(row=0, column=0, sticky="nw", padx=(0, 8))
@@ -102,6 +121,15 @@ class UploadTab:
         ttk.Label(status, textvariable=self.error_var).grid(
             row=1, column=1, sticky="w", pady=(8, 0)
         )
+        ttk.Label(status, text="실패 인덱스").grid(
+            row=2, column=0, sticky="nw", padx=(0, 8), pady=(8, 0)
+        )
+        ttk.Label(
+            status,
+            textvariable=self.failed_indices_var,
+            wraplength=520,
+            justify="left",
+        ).grid(row=2, column=1, sticky="w", pady=(8, 0))
 
     def _add_entry_row(
         self,
@@ -191,6 +219,10 @@ class UploadTab:
         """현재 업로드 상태를 화면 문자열로 갱신한다."""
         self.status_var.set(self._status_text())
         self.error_var.set(self.task_state.error_message or "-")
+        self.failed_indices_var.set(self._failed_indices_text())
+        self.run_button.configure(
+            state="disabled" if self.task_state.is_running else "normal"
+        )
 
     def _status_text(self) -> str:
         if self.task_state.is_running:
@@ -201,6 +233,120 @@ class UploadTab:
         if self.task_state.success or self.task_state.failed:
             return f"완료: 성공 {self.task_state.success}, 실패 {len(self.task_state.failed)}"
         return "대기 중"
+
+    def _start_upload(self) -> None:
+        config = self._build_config()
+        if config is None:
+            return
+
+        self.task_state.is_running = True
+        self.task_state.current = 0
+        self.task_state.total = 0
+        self.task_state.message = ""
+        self.task_state.success = 0
+        self.task_state.failed.clear()
+        self.task_state.error_message = (
+            "브라우저가 열리면 터미널에서 Enter를 눌러 업로드를 계속 진행하세요."
+        )
+        self.refresh_task_state()
+
+        Thread(target=self._run_upload, args=(config,), daemon=True).start()
+
+    def _build_config(self) -> UploadConfig | None:
+        if self.form_state.directory is None:
+            self.task_state.error_message = "업로드 디렉토리를 선택해주세요."
+            self.refresh_task_state()
+            return None
+
+        return UploadConfig(
+            directory=self.form_state.directory,
+            base_url=self.form_state.base_url,
+            add_path=self.form_state.add_path,
+            pause=self.form_state.pause,
+            headless=self.form_state.headless,
+            start_index=self.form_state.start_index,
+            limit=self.form_state.limit,
+            name_prefix=self.form_state.name_prefix,
+            login_mode=self.form_state.login_mode,
+        )
+
+    def _run_upload(self, config: UploadConfig) -> None:
+        uploader = Uploader(config=config, on_progress=self._handle_progress)
+        try:
+            result = uploader.run()
+        except Exception as error:  # noqa: BLE001
+            message = str(error)
+            self.frame.after(
+                0,
+                lambda message=message: self._finish_upload_error(message),
+            )
+            return
+
+        self.frame.after(0, lambda: self._finish_upload_success(result))
+
+    def _handle_progress(self, current: int, total: int, message: str) -> None:
+        self.frame.after(
+            0,
+            lambda: self._update_progress(current, total, message),
+        )
+
+    def _update_progress(self, current: int, total: int, message: str) -> None:
+        self.task_state.current = current
+        self.task_state.total = total
+        self.task_state.message = message
+        self.refresh_task_state()
+
+    def _finish_upload_success(self, result) -> None:
+        self.task_state.is_running = False
+        self.task_state.success = result.success
+        self.task_state.failed = list(result.failed)
+        self.task_state.message = ""
+        self.task_state.error_message = ""
+        self.refresh_task_state()
+
+    def _finish_upload_error(self, message: str) -> None:
+        self.task_state.is_running = False
+        self.task_state.message = ""
+        self.task_state.error_message = message
+        self.refresh_task_state()
+
+    def _failed_indices_text(self) -> str:
+        if not self.task_state.failed:
+            return "-"
+
+        order_map = self._upload_order_map()
+        indices: list[str] = []
+        for path, _reason in self.task_state.failed:
+            match = self.FAILED_INDEX_RE.search(path.stem)
+            order = order_map.get(path)
+            if match:
+                token = match.group(1).lower()
+            else:
+                token = path.stem
+
+            if order is not None:
+                indices.append(f"{token} ({order}번)")
+            else:
+                indices.append(token)
+
+        return ", ".join(indices)
+
+    def _upload_order_map(self) -> dict[Path, int]:
+        directory = self.form_state.directory
+        if directory is None or not directory.exists():
+            return {}
+
+        try:
+            files = list_image_files(directory)
+        except Exception:  # noqa: BLE001
+            return {}
+
+        start = max(self.form_state.start_index - 1, 0)
+        files = files[start:]
+        if self.form_state.limit is not None:
+            files = files[: self.form_state.limit]
+
+        return {path: start + offset for offset, path in enumerate(files, start=1)}
 
     @staticmethod
     def _parse_int(value: str) -> int | None:
