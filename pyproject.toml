@@ -5,8 +5,22 @@ build-backend = "hatchling.build"
 [project]
 name = "ezcut"
 version = "0.1.0"
-description = "GIF를 그리드로 분할하여 각 조각을 개별 GIF로 저장하는 CLI 도구"
+description = "GIF를 그리드로 분할하여 Mattermost 커스텀 이모지로 업로드하는 CLI/GUI 도구"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.14"
+keywords = ["gif", "mattermost", "emoji", "split", "grid"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Graphics",
+]
 dependencies = [
     "Pillow>=9.0",
     "questionary>=2.1.1",
@@ -14,6 +28,11 @@ dependencies = [
     "typer>=0.24.1",
     "keyring>=25.7.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/S-P-A-N/ezcut-gif"
+Repository = "https://github.com/S-P-A-N/ezcut-gif"
+Issues = "https://github.com/S-P-A-N/ezcut-gif/issues"
 
 [dependency-groups]
 dev = [
@@ -24,6 +43,9 @@ dev = [
 [project.scripts]
 ezcut = "ezcut.cli:main"
 ezcut-gui = "ezcut.gui:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ezcut"]
 
 [tool.ruff]
 line-length = 88
