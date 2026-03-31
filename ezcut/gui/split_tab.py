@@ -9,7 +9,7 @@ from PIL import Image
 from ezcut.services import Splitter
 from ezcut.store.models import SplitConfig
 from ezcut.store.state import SplitFormState, SplitTaskState
-from ezcut.utils.grid import compute_grid
+from ezcut.utils.grid import compute_grid, recommend_grid
 
 
 class SplitTab:
@@ -348,7 +348,7 @@ class SplitTab:
             return
 
         self._base_cols, self._base_rows = compute_grid(width, height)
-        self._recommended_cols, self._recommended_rows = self._recommend_grid(
+        self._recommended_cols, self._recommended_rows = recommend_grid(
             self._base_cols,
             self._base_rows,
         )
@@ -541,25 +541,6 @@ class SplitTab:
             return max(int(text), 1)
         except ValueError:
             return 1
-
-    @staticmethod
-    def _recommend_grid(
-        cols: int,
-        rows: int,
-        max_pieces: int = 144,
-    ) -> tuple[int, int]:
-        current_cols = cols
-        current_rows = rows
-
-        while current_cols * current_rows > max_pieces:
-            next_cols = max(round(current_cols / 2), 1)
-            next_rows = max(round(current_rows / 2), 1)
-            if next_cols == current_cols and next_rows == current_rows:
-                break
-            current_cols = next_cols
-            current_rows = next_rows
-
-        return current_cols, current_rows
 
     @staticmethod
     def _parse_speed_multiplier(value: str) -> float:

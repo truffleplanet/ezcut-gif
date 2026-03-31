@@ -8,6 +8,26 @@ def compute_grid(width: int, height: int) -> tuple[int, int]:
     return cols, rows
 
 
+def recommend_grid(
+    cols: int,
+    rows: int,
+    max_pieces: int = 144,
+) -> tuple[int, int]:
+    """GCD 기반 그리드가 max_pieces를 초과하면 절반씩 줄여 추천한다."""
+    current_cols = cols
+    current_rows = rows
+
+    while current_cols * current_rows > max_pieces:
+        next_cols = max(round(current_cols / 2), 1)
+        next_rows = max(round(current_rows / 2), 1)
+        if next_cols == current_cols and next_rows == current_rows:
+            break
+        current_cols = next_cols
+        current_rows = next_rows
+
+    return current_cols, current_rows
+
+
 def resolve_grid(
     width: int,
     height: int,
