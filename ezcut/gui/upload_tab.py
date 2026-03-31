@@ -1,9 +1,11 @@
 import re
 import tkinter as tk
+from dataclasses import replace
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
 from tkinter import filedialog, ttk
 
+from ezcut.repository import ConfigRepository, CredentialRepository
 from ezcut.services import Uploader
 from ezcut.store.models import UploadConfig
 from ezcut.store.state import UploadFormState, UploadTaskState
@@ -23,6 +25,9 @@ class UploadTab:
     ) -> None:
         self.form_state = form_state
         self.task_state = task_state
+        self.config_repo = ConfigRepository()
+        self.credentials_repo = CredentialRepository()
+        self.app_config = self.config_repo.load()
 
         self.frame = ttk.Frame(parent, padding=16)
         self.frame.columnconfigure(0, weight=1)
@@ -38,10 +43,15 @@ class UploadTab:
         self.limit_var = tk.StringVar(value=self._number_text(self.form_state.limit))
         self.name_prefix_var = tk.StringVar(value=self.form_state.name_prefix)
         self.login_mode_var = tk.StringVar(value=self.form_state.login_mode)
+        self.email_var = tk.StringVar(value=self.app_config.mattermost_email)
+        self.password_var = tk.StringVar()
 
         self.status_var = tk.StringVar(value=self._status_text())
         self.error_var = tk.StringVar(value=self.task_state.error_message or "-")
         self.failed_indices_var = tk.StringVar(value="-")
+        self.account_status_var = tk.StringVar(value=self._account_status_text())
+        self._manual_login_window: tk.Toplevel | None = None
+        self._manual_login_event: Event | None = None
 
         self._build_form()
         self._bind_state()
@@ -97,8 +107,35 @@ class UploadTab:
             variable=self.headless_var,
         ).grid(row=8, column=1, sticky="w", pady=(4, 0))
 
+        account = ttk.LabelFrame(self.frame, text="Mattermost 계정", padding=12)
+        account.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+        account.columnconfigure(1, weight=1)
+
+        self._add_entry_row(account, 0, "이메일", self.email_var)
+        self._add_entry_row(
+            account,
+            1,
+            "비밀번호",
+            self.password_var,
+            show="*",
+        )
+
+        account_actions = ttk.Frame(account)
+        account_actions.grid(row=2, column=1, sticky="w", pady=(8, 0))
+
+        ttk.Button(
+            account_actions,
+            text="계정 저장",
+            command=self._save_credentials,
+        ).pack(side="left")
+
+        ttk.Label(
+            account,
+            textvariable=self.account_status_var,
+        ).grid(row=3, column=1, sticky="w", pady=(8, 0))
+
         actions = ttk.Frame(self.frame)
-        actions.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+        actions.grid(row=4, column=0, sticky="ew", pady=(12, 0))
 
         self.run_button = ttk.Button(
             actions,
@@ -108,7 +145,7 @@ class UploadTab:
         self.run_button.pack(anchor="e")
 
         status = ttk.LabelFrame(self.frame, text="작업 상태", padding=12)
-        status.grid(row=4, column=0, sticky="ew", pady=(12, 0))
+        status.grid(row=5, column=0, sticky="ew", pady=(12, 0))
         status.columnconfigure(1, weight=1)
 
         ttk.Label(status, text="상태").grid(row=0, column=0, sticky="nw", padx=(0, 8))
@@ -138,11 +175,17 @@ class UploadTab:
         label: str,
         variable: tk.StringVar,
         width: int = 40,
+        show: str | None = None,
     ) -> None:
         ttk.Label(parent, text=label).grid(
             row=row, column=0, sticky="w", padx=(0, 8), pady=4
         )
-        ttk.Entry(parent, textvariable=variable, width=width).grid(
+        ttk.Entry(
+            parent,
+            textvariable=variable,
+            width=width,
+            show=show or "",
+        ).grid(
             row=row,
             column=1,
             sticky="ew",
@@ -215,11 +258,31 @@ class UploadTab:
     def set_directory(self, path: Path) -> None:
         self.directory_var.set(str(path))
 
+    def _save_credentials(self) -> None:
+        email = self.email_var.get().strip()
+        password = self.password_var.get()
+
+        if not email:
+            self.account_status_var.set("이메일을 입력해주세요.")
+            return
+
+        if not password:
+            self.account_status_var.set("비밀번호를 입력해주세요.")
+            return
+
+        updated_config = replace(self.config_repo.load(), mattermost_email=email)
+        self.config_repo.save(updated_config)
+        self.app_config = updated_config
+        self.credentials_repo.set_password(email, password)
+        self.password_var.set("")
+        self.account_status_var.set("계정이 저장되었습니다.")
+
     def refresh_task_state(self) -> None:
         """현재 업로드 상태를 화면 문자열로 갱신한다."""
         self.status_var.set(self._status_text())
         self.error_var.set(self.task_state.error_message or "-")
         self.failed_indices_var.set(self._failed_indices_text())
+        self.account_status_var.set(self._account_status_text())
         self.run_button.configure(
             state="disabled" if self.task_state.is_running else "normal"
         )
@@ -235,6 +298,7 @@ class UploadTab:
         return "대기 중"
 
     def _start_upload(self) -> None:
+        self.app_config = self.config_repo.load()
         config = self._build_config()
         if config is None:
             return
@@ -245,9 +309,12 @@ class UploadTab:
         self.task_state.message = ""
         self.task_state.success = 0
         self.task_state.failed.clear()
-        self.task_state.error_message = (
-            "브라우저가 열리면 터미널에서 Enter를 눌러 업로드를 계속 진행하세요."
-        )
+        if config.login_mode == "manual":
+            self.task_state.error_message = (
+                "브라우저에서 로그인한 뒤 계속 진행 버튼을 눌러주세요."
+            )
+        else:
+            self.task_state.error_message = ""
         self.refresh_task_state()
 
         Thread(target=self._run_upload, args=(config,), daemon=True).start()
@@ -257,6 +324,18 @@ class UploadTab:
             self.task_state.error_message = "업로드 디렉토리를 선택해주세요."
             self.refresh_task_state()
             return None
+
+        if self.form_state.login_mode == "auto":
+            email = self.app_config.mattermost_email.strip()
+            if not email:
+                self.task_state.error_message = "저장된 Mattermost 이메일이 없습니다."
+                self.refresh_task_state()
+                return None
+
+            if not self.credentials_repo.has_password(email):
+                self.task_state.error_message = "저장된 Mattermost 비밀번호가 없습니다."
+                self.refresh_task_state()
+                return None
 
         return UploadConfig(
             directory=self.form_state.directory,
@@ -271,7 +350,18 @@ class UploadTab:
         )
 
     def _run_upload(self, config: UploadConfig) -> None:
-        uploader = Uploader(config=config, on_progress=self._handle_progress)
+        self._manual_login_event = Event()
+        uploader = Uploader(
+            config=config,
+            app_config=self.app_config,
+            credentials=self.credentials_repo,
+            on_progress=self._handle_progress,
+            wait_for_manual_login=(
+                self._wait_for_manual_login_confirmation
+                if config.login_mode == "manual"
+                else None
+            ),
+        )
         try:
             result = uploader.run()
         except Exception as error:  # noqa: BLE001
@@ -297,6 +387,7 @@ class UploadTab:
         self.refresh_task_state()
 
     def _finish_upload_success(self, result) -> None:
+        self._close_manual_login_window()
         self.task_state.is_running = False
         self.task_state.success = result.success
         self.task_state.failed = list(result.failed)
@@ -305,10 +396,75 @@ class UploadTab:
         self.refresh_task_state()
 
     def _finish_upload_error(self, message: str) -> None:
+        self._close_manual_login_window()
         self.task_state.is_running = False
         self.task_state.message = ""
         self.task_state.error_message = message
         self.refresh_task_state()
+
+    def _wait_for_manual_login_confirmation(self) -> None:
+        if self._manual_login_event is None:
+            raise RuntimeError("수동 로그인 대기 이벤트가 준비되지 않았습니다.")
+
+        self.frame.after(0, self._show_manual_login_window)
+        self._manual_login_event.wait()
+
+    def _show_manual_login_window(self) -> None:
+        if (
+            self._manual_login_window is not None
+            and self._manual_login_window.winfo_exists()
+        ):
+            self._manual_login_window.deiconify()
+            self._manual_login_window.lift()
+            self._manual_login_window.focus_force()
+            return
+
+        window = tk.Toplevel(self.frame)
+        window.title("Mattermost 로그인 확인")
+        window.resizable(False, False)
+
+        ttk.Label(
+            window,
+            text="브라우저에서 Mattermost 로그인을 완료한 뒤\n아래 버튼을 눌러 업로드를 계속 진행하세요.",
+            justify="center",
+        ).pack(padx=20, pady=(20, 12))
+
+        ttk.Button(
+            window,
+            text="로그인 완료, 계속 진행",
+            command=self._confirm_manual_login,
+        ).pack(pady=(0, 20))
+
+        window.protocol("WM_DELETE_WINDOW", lambda: None)
+        window.transient(self.frame.winfo_toplevel())
+        window.grab_set()
+        window.lift()
+        window.focus_force()
+        self._manual_login_window = window
+
+    def _confirm_manual_login(self) -> None:
+        if self._manual_login_event is not None:
+            self._manual_login_event.set()
+        self._close_manual_login_window()
+
+    def _close_manual_login_window(self) -> None:
+        if (
+            self._manual_login_window is not None
+            and self._manual_login_window.winfo_exists()
+        ):
+            self._manual_login_window.grab_release()
+            self._manual_login_window.destroy()
+        self._manual_login_window = None
+
+    def _account_status_text(self) -> str:
+        email = self.email_var.get().strip() or self.app_config.mattermost_email
+        if not email:
+            return "저장된 계정이 없습니다."
+
+        if self.credentials_repo.has_password(email):
+            return f"저장된 계정: {email}"
+
+        return f"이메일만 저장됨: {email}"
 
     def _failed_indices_text(self) -> str:
         if not self.task_state.failed:

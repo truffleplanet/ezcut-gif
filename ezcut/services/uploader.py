@@ -1,4 +1,5 @@
 import time
+from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -16,6 +17,11 @@ from ezcut.store.state import ProgressCallback
 from ezcut.utils.emoji_txt import list_image_files
 from ezcut.utils.naming import normalize_emoji_name
 
+BROWSER_VIEW_XPATH = "//a[normalize-space()='브라우저에서 보기']"
+LOGIN_EMAIL_SELECTOR = "input#input_loginId"
+LOGIN_PASSWORD_SELECTOR = "input#input_password-input"
+LOGIN_SUBMIT_SELECTOR = "button#saveSetting"
+
 
 class Uploader:
     """Mattermost 업로드 상태를 관리하는 서비스."""
@@ -26,11 +32,13 @@ class Uploader:
         app_config: AppConfig | None = None,
         credentials: CredentialRepository | None = None,
         on_progress: ProgressCallback | None = None,
+        wait_for_manual_login: Callable[[], None] | None = None,
     ) -> None:
         self.config = config
         self.app_config = app_config
         self.credentials = credentials
         self.on_progress = on_progress
+        self.wait_for_manual_login = wait_for_manual_login
         self.files: list = []
 
     def run(self) -> UploadResult:
@@ -50,7 +58,7 @@ class Uploader:
         failed: list[tuple[Path, str]] = []
 
         try:
-            self._wait_for_manual_login(driver, add_url)
+            self._login(driver, wait, add_url)
             total = len(self.files)
 
             for index, image_path in enumerate(self.files, start=1):
@@ -81,6 +89,25 @@ class Uploader:
 
         return UploadResult(success=success, failed=failed)
 
+    def _login(self, driver, wait, add_url: str) -> None:
+        """로그인 방식을 분기한다."""
+        default_login_mode = (
+            self.app_config.mattermost_login_mode
+            if self.app_config is not None
+            else "manual"
+        )
+        login_mode = self.config.login_mode or default_login_mode
+
+        if login_mode == "manual":
+            self._manual_login(driver, wait, add_url)
+            return
+
+        if login_mode == "auto":
+            self._auto_login(driver, wait, add_url)
+            return
+
+        raise ValueError(f"지원하지 않는 로그인 방식입니다: {login_mode}")
+
     def _resolve_add_url(self) -> str:
         """업로드 페이지 주소를 계산한다."""
         if self.config.add_path.startswith(("http://", "https://")):
@@ -106,13 +133,62 @@ class Uploader:
 
         return webdriver.Chrome(options=options, service=Service())
 
-    def _wait_for_manual_login(self, driver, add_url: str) -> None:
+    def _manual_login(self, driver, wait, add_url: str) -> None:
         """사용자가 직접 로그인할 수 있도록 대기한다."""
+        self._open_browser_view(driver, wait, add_url)
+        if self.wait_for_manual_login is not None:
+            self.wait_for_manual_login()
+        else:
+            print("브라우저가 열렸습니다.")
+            print(
+                "meeting.ssafy 로그인 상태가 아니라면 직접 로그인한 뒤 Enter를 누르세요."
+            )
+            input()
+        self._wait_until_add_page(driver, wait)
+
+    def _auto_login(self, driver, wait, add_url: str) -> None:
+        """저장된 자격 증명으로 자동 로그인을 시도한다."""
+        email = self._resolve_login_email()
+        password = self._resolve_login_password(email)
+
+        self._open_browser_view(driver, wait, add_url)
+
+        if self._is_add_page_ready(driver):
+            return
+
+        self._wait_until_login_form(wait)
+
+        email_input = wait.until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, LOGIN_EMAIL_SELECTOR))
+        )
+        password_input = wait.until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, LOGIN_PASSWORD_SELECTOR))
+        )
+        submit_button = wait.until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, LOGIN_SUBMIT_SELECTOR))
+        )
+
+        email_input.clear()
+        email_input.send_keys(email)
+        password_input.clear()
+        password_input.send_keys(password)
+        submit_button.click()
+
+        self._wait_until_add_page(driver, wait)
+
+    def _open_browser_view(self, driver, wait, add_url: str) -> None:
+        """랜딩 페이지에서 브라우저 보기로 진입한다."""
         driver.get(add_url)
-        print("브라우저가 열렸습니다.")
-        print("meeting.ssafy 로그인 상태가 아니라면 직접 로그인한 뒤 Enter를 누르세요.")
-        input()
-        driver.get(add_url)
+
+        page_state = self._wait_for_page_state(wait)
+        if page_state in {"add", "login"}:
+            return
+
+        browser_view_button = wait.until(
+            EC.element_to_be_clickable((By.XPATH, BROWSER_VIEW_XPATH))
+        )
+        browser_view_button.click()
+        self._wait_for_page_state(wait)
 
     def _open_add_page(self, driver, wait, add_url: str) -> None:
         """이모지 업로드 페이지를 연다."""
@@ -172,3 +248,70 @@ class Uploader:
                 " | ".join(messages) if messages else "저장 후 페이지 변화가 없습니다."
             )
             raise RuntimeError(joined)
+
+    def _resolve_login_email(self) -> str:
+        """자동 로그인에 사용할 이메일을 반환한다."""
+        if self.app_config is None or not self.app_config.mattermost_email.strip():
+            raise ValueError("저장된 Mattermost 이메일이 없습니다.")
+
+        return self.app_config.mattermost_email.strip()
+
+    def _resolve_login_password(self, email: str) -> str:
+        """자동 로그인에 사용할 비밀번호를 반환한다."""
+        if self.credentials is None:
+            raise ValueError("자격 증명 저장소가 연결되지 않았습니다.")
+
+        password = self.credentials.get_password(email)
+        if not password:
+            raise ValueError("저장된 Mattermost 비밀번호가 없습니다.")
+
+        return password
+
+    def _wait_until_login_form(self, wait) -> None:
+        """로그인 폼이 나타날 때까지 대기한다."""
+        try:
+            wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, LOGIN_EMAIL_SELECTOR))
+            )
+            wait.until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, LOGIN_PASSWORD_SELECTOR)
+                )
+            )
+        except TimeoutException as error:
+            raise RuntimeError("Mattermost 로그인 폼을 찾지 못했습니다.") from error
+
+    def _wait_until_add_page(self, driver, wait) -> None:
+        """업로드 페이지가 열릴 때까지 대기한다."""
+        try:
+            wait.until(lambda current_driver: self._is_add_page_ready(current_driver))
+        except TimeoutException as error:
+            raise RuntimeError("이모지 업로드 페이지로 진입하지 못했습니다.") from error
+
+    def _is_add_page_ready(self, driver) -> bool:
+        """이모지 업로드 폼이 준비됐는지 확인한다."""
+        return bool(
+            driver.find_elements(By.CSS_SELECTOR, self.config.page.name_input_selector)
+        ) and bool(
+            driver.find_elements(By.CSS_SELECTOR, self.config.page.file_input_selector)
+        )
+
+    def _wait_for_page_state(self, wait) -> str:
+        """현재 페이지 상태를 판별한다."""
+        try:
+            return wait.until(
+                lambda driver: (
+                    "add"
+                    if self._is_add_page_ready(driver)
+                    else "login"
+                    if driver.find_elements(By.CSS_SELECTOR, LOGIN_EMAIL_SELECTOR)
+                    and driver.find_elements(By.CSS_SELECTOR, LOGIN_PASSWORD_SELECTOR)
+                    else "browser_view"
+                    if driver.find_elements(By.XPATH, BROWSER_VIEW_XPATH)
+                    else False
+                )
+            )
+        except TimeoutException as error:
+            raise RuntimeError(
+                "Mattermost 로그인 페이지 또는 업로드 페이지를 찾지 못했습니다."
+            ) from error

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tomllib
+from dataclasses import replace
 from pathlib import Path
 
 from ezcut.store.models import AppConfig
@@ -30,6 +31,9 @@ class ConfigRepository:
             ),
             mattermost_login_mode=raw_config.get("mattermost", {}).get(
                 "login_mode", AppConfig.mattermost_login_mode
+            ),
+            mattermost_email=raw_config.get("mattermost", {}).get(
+                "email", AppConfig.mattermost_email
             ),
             chrome_user_data_dir=raw_config.get("chrome", {}).get(
                 "user_data_dir", AppConfig.chrome_user_data_dir
@@ -67,8 +71,7 @@ class ConfigRepository:
 
         current_value = getattr(config, key)
         parsed_value = self._coerce_value(value, current_value)
-        setattr(config, key, parsed_value)
-        self.save(config)
+        self.save(replace(config, **{key: parsed_value}))
 
     @staticmethod
     def _coerce_value(value: str, current_value: object) -> object:
@@ -83,6 +86,7 @@ class ConfigRepository:
             f'base_url = "{config.mattermost_base_url}"\n'
             f'add_path = "{config.mattermost_add_path}"\n'
             f'login_mode = "{config.mattermost_login_mode}"\n\n'
+            f'email = "{config.mattermost_email}"\n\n'
             "[chrome]\n"
             f'user_data_dir = "{config.chrome_user_data_dir}"\n'
             f'profile = "{config.chrome_profile}"\n\n'
