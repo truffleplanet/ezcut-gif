@@ -1,9 +1,11 @@
 import re
 import tkinter as tk
+from dataclasses import replace
 from pathlib import Path
 from threading import Thread
 from tkinter import filedialog, ttk
 
+from ezcut.repository import ConfigRepository, CredentialRepository
 from ezcut.services import Uploader
 from ezcut.store.models import UploadConfig
 from ezcut.store.state import UploadFormState, UploadTaskState
@@ -23,6 +25,9 @@ class UploadTab:
     ) -> None:
         self.form_state = form_state
         self.task_state = task_state
+        self.config_repo = ConfigRepository()
+        self.credentials_repo = CredentialRepository()
+        self.app_config = self.config_repo.load()
 
         self.frame = ttk.Frame(parent, padding=16)
         self.frame.columnconfigure(0, weight=1)
@@ -38,10 +43,13 @@ class UploadTab:
         self.limit_var = tk.StringVar(value=self._number_text(self.form_state.limit))
         self.name_prefix_var = tk.StringVar(value=self.form_state.name_prefix)
         self.login_mode_var = tk.StringVar(value=self.form_state.login_mode)
+        self.email_var = tk.StringVar(value=self.app_config.mattermost_email)
+        self.password_var = tk.StringVar()
 
         self.status_var = tk.StringVar(value=self._status_text())
         self.error_var = tk.StringVar(value=self.task_state.error_message or "-")
         self.failed_indices_var = tk.StringVar(value="-")
+        self.account_status_var = tk.StringVar(value=self._account_status_text())
 
         self._build_form()
         self._bind_state()
@@ -97,8 +105,35 @@ class UploadTab:
             variable=self.headless_var,
         ).grid(row=8, column=1, sticky="w", pady=(4, 0))
 
+        account = ttk.LabelFrame(self.frame, text="Mattermost 계정", padding=12)
+        account.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+        account.columnconfigure(1, weight=1)
+
+        self._add_entry_row(account, 0, "이메일", self.email_var)
+        self._add_entry_row(
+            account,
+            1,
+            "비밀번호",
+            self.password_var,
+            show="*",
+        )
+
+        account_actions = ttk.Frame(account)
+        account_actions.grid(row=2, column=1, sticky="w", pady=(8, 0))
+
+        ttk.Button(
+            account_actions,
+            text="계정 저장",
+            command=self._save_credentials,
+        ).pack(side="left")
+
+        ttk.Label(
+            account,
+            textvariable=self.account_status_var,
+        ).grid(row=3, column=1, sticky="w", pady=(8, 0))
+
         actions = ttk.Frame(self.frame)
-        actions.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+        actions.grid(row=4, column=0, sticky="ew", pady=(12, 0))
 
         self.run_button = ttk.Button(
             actions,
@@ -108,7 +143,7 @@ class UploadTab:
         self.run_button.pack(anchor="e")
 
         status = ttk.LabelFrame(self.frame, text="작업 상태", padding=12)
-        status.grid(row=4, column=0, sticky="ew", pady=(12, 0))
+        status.grid(row=5, column=0, sticky="ew", pady=(12, 0))
         status.columnconfigure(1, weight=1)
 
         ttk.Label(status, text="상태").grid(row=0, column=0, sticky="nw", padx=(0, 8))
@@ -138,11 +173,17 @@ class UploadTab:
         label: str,
         variable: tk.StringVar,
         width: int = 40,
+        show: str | None = None,
     ) -> None:
         ttk.Label(parent, text=label).grid(
             row=row, column=0, sticky="w", padx=(0, 8), pady=4
         )
-        ttk.Entry(parent, textvariable=variable, width=width).grid(
+        ttk.Entry(
+            parent,
+            textvariable=variable,
+            width=width,
+            show=show or "",
+        ).grid(
             row=row,
             column=1,
             sticky="ew",
@@ -215,11 +256,31 @@ class UploadTab:
     def set_directory(self, path: Path) -> None:
         self.directory_var.set(str(path))
 
+    def _save_credentials(self) -> None:
+        email = self.email_var.get().strip()
+        password = self.password_var.get()
+
+        if not email:
+            self.account_status_var.set("이메일을 입력해주세요.")
+            return
+
+        if not password:
+            self.account_status_var.set("비밀번호를 입력해주세요.")
+            return
+
+        updated_config = replace(self.config_repo.load(), mattermost_email=email)
+        self.config_repo.save(updated_config)
+        self.app_config = updated_config
+        self.credentials_repo.set_password(email, password)
+        self.password_var.set("")
+        self.account_status_var.set("계정이 저장되었습니다.")
+
     def refresh_task_state(self) -> None:
         """현재 업로드 상태를 화면 문자열로 갱신한다."""
         self.status_var.set(self._status_text())
         self.error_var.set(self.task_state.error_message or "-")
         self.failed_indices_var.set(self._failed_indices_text())
+        self.account_status_var.set(self._account_status_text())
         self.run_button.configure(
             state="disabled" if self.task_state.is_running else "normal"
         )
@@ -309,6 +370,16 @@ class UploadTab:
         self.task_state.message = ""
         self.task_state.error_message = message
         self.refresh_task_state()
+
+    def _account_status_text(self) -> str:
+        email = self.email_var.get().strip() or self.app_config.mattermost_email
+        if not email:
+            return "저장된 계정이 없습니다."
+
+        if self.credentials_repo.has_password(email):
+            return f"저장된 계정: {email}"
+
+        return f"이메일만 저장됨: {email}"
 
     def _failed_indices_text(self) -> str:
         if not self.task_state.failed:
