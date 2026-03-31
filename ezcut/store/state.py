@@ -19,6 +19,7 @@ class SplitFormState:
     emoji_name: str = ""
     tile_size: int = 128
     max_file_size_kb: int = 512
+    speed_multiplier: float = 1.0
 
 
 @dataclass

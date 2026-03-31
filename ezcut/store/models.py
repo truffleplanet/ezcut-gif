@@ -16,6 +16,7 @@ class SplitConfig:
     emoji_name: str | None = None
     max_file_size_kb: int = 512
     max_pieces: int = 144
+    speed_multiplier: float = 1.0
 
 
 @dataclass(frozen=True)

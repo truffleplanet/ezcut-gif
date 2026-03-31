@@ -42,6 +42,9 @@ class SplitTab:
         self.max_file_size_var = tk.StringVar(
             value=str(self.form_state.max_file_size_kb)
         )
+        self.speed_multiplier_var = tk.StringVar(
+            value=self._speed_text(self.form_state.speed_multiplier)
+        )
         self.multiplier_var = tk.StringVar(value="1x")
 
         self.status_var = tk.StringVar(value=self._status_text())
@@ -105,6 +108,14 @@ class SplitTab:
             6,
             "조각당 최대 파일 크기(KB)",
             self.max_file_size_var,
+            width=10,
+        )
+        self._add_combobox_row(
+            form,
+            7,
+            "재생 속도",
+            self.speed_multiplier_var,
+            values=("1.0x", "1.5x", "2.0x", "3.0x"),
             width=10,
         )
 
@@ -194,6 +205,10 @@ class SplitTab:
             self.frame,
             text="조각 이미지 크기(px)는 결과 GIF 한 조각의 가로/세로 크기입니다. 예: 128 = 128x128",
         ).grid(row=5, column=0, sticky="w", pady=(12, 0))
+        ttk.Label(
+            self.frame,
+            text="재생 속도는 결과 GIF의 전체 실행 시간을 압축합니다. 예: 2.0x = 절반 시간",
+        ).grid(row=6, column=0, sticky="w", pady=(4, 0))
 
     def _add_entry_row(
         self,
@@ -241,6 +256,26 @@ class SplitTab:
             padx=(8, 0),
         )
 
+    def _add_combobox_row(
+        self,
+        parent: ttk.LabelFrame,
+        row: int,
+        label: str,
+        variable: tk.StringVar,
+        values: tuple[str, ...],
+        width: int = 10,
+    ) -> None:
+        ttk.Label(parent, text=label).grid(
+            row=row, column=0, sticky="w", padx=(0, 8), pady=4
+        )
+        ttk.Combobox(
+            parent,
+            textvariable=variable,
+            values=values,
+            state="readonly",
+            width=width,
+        ).grid(row=row, column=1, sticky="w", pady=4)
+
     def _bind_state(self) -> None:
         variables = (
             self.input_path_var,
@@ -250,6 +285,7 @@ class SplitTab:
             self.emoji_name_var,
             self.tile_size_var,
             self.max_file_size_var,
+            self.speed_multiplier_var,
         )
         for variable in variables:
             variable.trace_add("write", self._sync_form_state)
@@ -264,6 +300,9 @@ class SplitTab:
         self.form_state.tile_size = self._parse_int(self.tile_size_var.get()) or 128
         self.form_state.max_file_size_kb = (
             self._parse_int(self.max_file_size_var.get()) or 512
+        )
+        self.form_state.speed_multiplier = self._parse_speed_multiplier(
+            self.speed_multiplier_var.get()
         )
         self.applied_grid_var.set(self._current_grid_text())
         self.refresh_task_state()
@@ -384,6 +423,7 @@ class SplitTab:
             rows=self.form_state.rows,
             emoji_name=self.form_state.emoji_name or None,
             max_file_size_kb=self.form_state.max_file_size_kb,
+            speed_multiplier=self.form_state.speed_multiplier,
         )
 
     def _run_split(self, config: SplitConfig) -> None:
@@ -520,3 +560,15 @@ class SplitTab:
             current_rows = next_rows
 
         return current_cols, current_rows
+
+    @staticmethod
+    def _parse_speed_multiplier(value: str) -> float:
+        text = value.strip().lower().removesuffix("x")
+        try:
+            return min(max(float(text), 1.0), 3.0)
+        except ValueError:
+            return 1.0
+
+    @staticmethod
+    def _speed_text(value: float) -> str:
+        return f"{value:.1f}x"
