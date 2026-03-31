@@ -50,7 +50,7 @@ class Uploader:
         failed: list[tuple[Path, str]] = []
 
         try:
-            self._wait_for_manual_login(driver, add_url)
+            self._login(driver, wait, add_url)
             total = len(self.files)
 
             for index, image_path in enumerate(self.files, start=1):
@@ -81,6 +81,25 @@ class Uploader:
 
         return UploadResult(success=success, failed=failed)
 
+    def _login(self, driver, wait, add_url: str) -> None:
+        """로그인 방식을 분기한다."""
+        default_login_mode = (
+            self.app_config.mattermost_login_mode
+            if self.app_config is not None
+            else "manual"
+        )
+        login_mode = self.config.login_mode or default_login_mode
+
+        if login_mode == "manual":
+            self._manual_login(driver, wait, add_url)
+            return
+
+        if login_mode == "auto":
+            self._auto_login(driver, wait, add_url)
+            return
+
+        raise ValueError(f"지원하지 않는 로그인 방식입니다: {login_mode}")
+
     def _resolve_add_url(self) -> str:
         """업로드 페이지 주소를 계산한다."""
         if self.config.add_path.startswith(("http://", "https://")):
@@ -106,13 +125,36 @@ class Uploader:
 
         return webdriver.Chrome(options=options, service=Service())
 
-    def _wait_for_manual_login(self, driver, add_url: str) -> None:
+    def _manual_login(self, driver, wait, add_url: str) -> None:
         """사용자가 직접 로그인할 수 있도록 대기한다."""
-        driver.get(add_url)
+        self._open_browser_view(driver, wait, add_url)
         print("브라우저가 열렸습니다.")
         print("meeting.ssafy 로그인 상태가 아니라면 직접 로그인한 뒤 Enter를 누르세요.")
         input()
         driver.get(add_url)
+
+    def _auto_login(self, driver, wait, add_url: str) -> None:
+        """자동 로그인 진입점을 제공한다."""
+        self._open_browser_view(driver, wait, add_url)
+        raise NotImplementedError("자동 로그인은 아직 구현되지 않았습니다.")
+
+    def _open_browser_view(self, driver, wait, add_url: str) -> None:
+        """랜딩 페이지에서 브라우저 보기로 진입한다."""
+        driver.get(add_url)
+
+        browser_view_buttons = driver.find_elements(
+            By.XPATH,
+            "//a[normalize-space()='브라우저에서 보기']",
+        )
+        if not browser_view_buttons:
+            return
+
+        browser_view_button = wait.until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//a[normalize-space()='브라우저에서 보기']")
+            )
+        )
+        browser_view_button.click()
 
     def _open_add_page(self, driver, wait, add_url: str) -> None:
         """이모지 업로드 페이지를 연다."""
