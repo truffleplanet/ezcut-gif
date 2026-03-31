@@ -126,13 +126,19 @@ class Splitter:
         """2패스 최적화로 타일을 저장하고 최종 frame_step을 반환한다."""
         target_size = self._config.tile_size
         max_file_size = self._config.max_file_size_kb * 1024
+        speed_multiplier = self._config.speed_multiplier
         total = len(cropped_tiles)
 
         worst_idx = 0
         worst_size = 0
 
         for idx, (crop_frames, filename) in enumerate(zip(cropped_tiles, filenames)):
-            images, durations = apply_frame_step(crop_frames, target_size, 1)
+            images, durations = apply_frame_step(
+                crop_frames,
+                target_size,
+                1,
+                speed_multiplier=speed_multiplier,
+            )
             path = output_dir / filename
             save_piece(images, durations, path, loop)
             size = path.stat().st_size
@@ -145,11 +151,20 @@ class Splitter:
             return 1
 
         best_step = find_optimal_step(
-            cropped_tiles[worst_idx], target_size, max_file_size, loop
+            cropped_tiles[worst_idx],
+            target_size,
+            max_file_size,
+            loop,
+            speed_multiplier=speed_multiplier,
         )
 
         for idx, (crop_frames, filename) in enumerate(zip(cropped_tiles, filenames)):
-            images, durations = apply_frame_step(crop_frames, target_size, best_step)
+            images, durations = apply_frame_step(
+                crop_frames,
+                target_size,
+                best_step,
+                speed_multiplier=speed_multiplier,
+            )
             path = output_dir / filename
             save_piece(images, durations, path, loop)
             self._report(idx + 1, total, f"Pass 2: {filename}")

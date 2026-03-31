@@ -9,6 +9,7 @@ def apply_frame_step(
     crop_frames: list[tuple[Image.Image, int]],
     target_size: int,
     frame_step: int,
+    speed_multiplier: float = 1.0,
 ) -> tuple[list[Image.Image], list[int]]:
     """프레임 스킵을 적용하여 (images, durations) 반환.
 
@@ -22,6 +23,13 @@ def apply_frame_step(
     if frame_step > 1:
         images = images[::frame_step]
         durations = [d * frame_step for d in durations[::frame_step]]
+
+    if speed_multiplier != 1.0:
+        min_duration = 40
+        durations = [
+            max(min_duration, int(round(duration / speed_multiplier)))
+            for duration in durations
+        ]
 
     return images, durations
 
@@ -52,6 +60,7 @@ def find_optimal_step(
     target_size: int,
     max_file_size: int,
     loop: int,
+    speed_multiplier: float = 1.0,
 ) -> int:
     """크기 제한을 만족하는 최소 frame_step을 찾는다.
 
@@ -59,7 +68,12 @@ def find_optimal_step(
     맞는 step이 없으면 마지막으로 테스트한 값(10)을 반환한다.
     """
     for step in range(2, 11):
-        images, durations = apply_frame_step(crop_frames, target_size, step)
+        images, durations = apply_frame_step(
+            crop_frames,
+            target_size,
+            step,
+            speed_multiplier=speed_multiplier,
+        )
         buf = io.BytesIO()
         save_piece(images, durations, buf, loop)
         if buf.tell() <= max_file_size:
