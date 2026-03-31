@@ -19,7 +19,8 @@ dev = [
 ]
 
 [project.scripts]
-ezcut = "ezcut:main"
+ezcut = "ezcut.cli:main"
+ezcut-gui = "ezcut.gui:main"
 
 [tool.ruff]
 line-length = 88
