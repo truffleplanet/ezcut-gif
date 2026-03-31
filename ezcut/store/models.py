@@ -60,6 +60,7 @@ class AppConfig:
     mattermost_base_url: str = "https://meeting.ssafy.com"
     mattermost_add_path: str = "s14public/emoji/add"
     mattermost_login_mode: str = "manual"  # manual | auto
+    mattermost_email: str = ""
 
     # Chrome 기본설정
     chrome_user_data_dir: str = ""
