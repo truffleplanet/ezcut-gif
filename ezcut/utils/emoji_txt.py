@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 from pathlib import Path
 
@@ -8,6 +6,7 @@ VALID_IMAGE_EXTENSIONS = {".gif", ".png", ".jpg", ".jpeg"}
 
 
 def parse_emoji_txt(directory: Path) -> list[list[Path]]:
+    """emoji.txt에서 파일명 그리드를 파싱한다."""
     emoji_path = directory / "emoji.txt"
     if not emoji_path.exists():
         raise FileNotFoundError(f"'{directory}'에 emoji.txt가 없습니다.")
@@ -32,6 +31,7 @@ def write_emoji_txt(
     cols: int,
     piece_id_factory,
 ) -> Path:
+    """emoji.txt를 생성하고 파일 경로를 반환한다."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     emoji_lines: list[str] = []
@@ -47,6 +47,7 @@ def write_emoji_txt(
 
 
 def list_image_files(directory: Path) -> list[Path]:
+    """디렉토리 내 gif/png/jpg 파일을 이름순으로 정렬하여 반환한다."""
     files = [
         path
         for path in sorted(directory.iterdir())
