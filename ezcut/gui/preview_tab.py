@@ -1,5 +1,6 @@
 import tkinter as tk
 from pathlib import Path
+from time import monotonic
 from tkinter import filedialog, ttk
 
 from PIL import Image, ImageTk
@@ -22,8 +23,11 @@ class PreviewTab:
         self.canvas: tk.Canvas | None = None
         self._after_id: str | None = None
         self._resize_after_id: str | None = None
-        self._canvas_items: dict[tuple[int, int], int] = {}
-        self._photo_refs: dict[tuple[int, int], ImageTk.PhotoImage] = {}
+        self._canvas_image: Image.Image | None = None
+        self._canvas_photo: ImageTk.PhotoImage | None = None
+        self._canvas_item_id: int | None = None
+        self._play_started_at: float | None = None
+        self._play_started_timeline_ms = 0
 
         self.directory_var = tk.StringVar(
             value=self._path_text(self.task_state.selected_directory)
@@ -124,7 +128,8 @@ class PreviewTab:
         self.task_state.is_playing = False
         self.task_state.timeline_ms = 0
         self.task_state.error_message = ""
-        self._draw_tiles()
+        self._build_canvas_image()
+        self._render_canvas_image()
         self.refresh_task_state()
 
     def _start_preview(self) -> None:
@@ -137,6 +142,9 @@ class PreviewTab:
             self._reset_preview()
 
         self._ensure_preview_window()
+        if not self.task_state.is_playing:
+            self._play_started_at = monotonic()
+            self._play_started_timeline_ms = self.task_state.timeline_ms
         self.task_state.is_playing = True
         self.refresh_task_state()
         self._schedule_next_tick()
@@ -146,6 +154,7 @@ class PreviewTab:
             self.frame.after_cancel(self._after_id)
             self._after_id = None
         self.task_state.is_playing = False
+        self._play_started_at = None
         self.refresh_task_state()
 
     def _reset_preview(self) -> None:
@@ -154,7 +163,9 @@ class PreviewTab:
             return
         self.previewer.reset_all()
         self.task_state.timeline_ms = 0
-        self._draw_tiles()
+        self._play_started_at = None
+        self._build_canvas_image()
+        self._render_canvas_image()
         self.refresh_task_state()
 
     def _schedule_next_tick(self) -> None:
@@ -165,13 +176,23 @@ class PreviewTab:
         if next_ms is None:
             self.previewer.reset_all()
             self.task_state.timeline_ms = 0
-            self._draw_tiles()
+            self._play_started_at = monotonic()
+            self._play_started_timeline_ms = 0
+            self._build_canvas_image()
+            self._render_canvas_image()
             next_ms = self.previewer.next_event_ms()
             if next_ms is None:
                 self._stop_preview()
                 return
 
-        delay = max(next_ms - self.task_state.timeline_ms, 1)
+        if self._play_started_at is None:
+            self._play_started_at = monotonic()
+            self._play_started_timeline_ms = self.task_state.timeline_ms
+
+        target_time = self._play_started_at + (
+            (next_ms - self._play_started_timeline_ms) / 1000
+        )
+        delay = max(int((target_time - monotonic()) * 1000), 1)
         self._after_id = self.frame.after(delay, lambda: self._tick(next_ms))
 
     def _tick(self, event_time_ms: int) -> None:
@@ -184,10 +205,12 @@ class PreviewTab:
                 continue
             if tile.next_change_ms <= event_time_ms:
                 changed |= self.previewer.advance_tile(tile, event_time_ms)
+                if changed:
+                    self._paste_tile(tile)
 
         self.task_state.timeline_ms = event_time_ms
         if changed:
-            self._draw_tiles()
+            self._render_canvas_image()
         self.refresh_task_state()
         self._schedule_next_tick()
 
@@ -206,21 +229,39 @@ class PreviewTab:
         self._resize_after_id = None
         if self.previewer is None or not self.task_state.is_loaded:
             return
-        self._draw_tiles()
+        self._render_canvas_image()
 
-    def _draw_tiles(self) -> None:
+    def _build_canvas_image(self) -> None:
         if self.previewer is None:
-            return
-        self._ensure_preview_window()
-        if self.canvas is None:
             return
 
         rows, cols, tile_size = self.previewer.grid_info
         width, height = tile_size
-        self.canvas.delete("all")
-        self._canvas_items.clear()
-        self._photo_refs.clear()
+        total_width = cols * width
+        total_height = rows * height
+        self._canvas_image = Image.new("RGBA", (total_width, total_height), "#111111")
 
+        for tile in self.previewer.tiles:
+            self._paste_tile(tile)
+
+    def _paste_tile(self, tile) -> None:
+        if self._canvas_image is None or self.previewer is None:
+            return
+
+        width, height = self.previewer.tile_size
+        x = tile.col_index * width
+        y = tile.row_index * height
+        self._canvas_image.paste(tile.current_frame, (x, y))
+
+    def _render_canvas_image(self) -> None:
+        if self.previewer is None:
+            return
+        self._ensure_preview_window()
+        if self.canvas is None or self._canvas_image is None:
+            return
+
+        rows, cols, tile_size = self.previewer.grid_info
+        width, height = tile_size
         total_width = cols * width
         total_height = rows * height
 
@@ -232,38 +273,27 @@ class PreviewTab:
             1.0,
         )
 
-        draw_width = max(int(width * scale), 1)
-        draw_height = max(int(height * scale), 1)
-        fitted_width = cols * draw_width
-        fitted_height = rows * draw_height
+        fitted_width = max(int(total_width * scale), 1)
+        fitted_height = max(int(total_height * scale), 1)
         offset_x = max((available_width - fitted_width) // 2, 0)
         offset_y = max((available_height - fitted_height) // 2, 0)
 
-        self.canvas.configure(scrollregion=(0, 0, available_width, available_height))
+        if scale < 1.0:
+            display = self._canvas_image.resize(
+                (fitted_width, fitted_height),
+                Image.Resampling.NEAREST,
+            )
+        else:
+            display = self._canvas_image
 
-        for tile in self.previewer.tiles:
-            frame = tile.current_frame
-            if scale < 1.0:
-                frame = frame.resize(
-                    (draw_width, draw_height), Image.Resampling.LANCZOS
-                )
-            photo = ImageTk.PhotoImage(frame)
-            key = (tile.row_index, tile.col_index)
-            x = offset_x + tile.col_index * draw_width
-            y = offset_y + tile.row_index * draw_height
-            item_id = self._canvas_items.get(key)
-
-            if item_id is None:
-                self._canvas_items[key] = self.canvas.create_image(
-                    x,
-                    y,
-                    anchor="nw",
-                    image=photo,
-                )
-            else:
-                self.canvas.itemconfigure(item_id, image=photo)
-
-            self._photo_refs[key] = photo
+        self.canvas.delete("all")
+        self._canvas_photo = ImageTk.PhotoImage(display)
+        self._canvas_item_id = self.canvas.create_image(
+            offset_x,
+            offset_y,
+            anchor="nw",
+            image=self._canvas_photo,
+        )
 
     def refresh_task_state(self) -> None:
         """현재 미리보기 상태를 화면 문자열로 갱신한다."""
