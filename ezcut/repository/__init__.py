@@ -1,4 +1,6 @@
-from .config import AppConfig, ConfigRepository
+from ezcut.store.models import AppConfig
+
+from .config import ConfigRepository
 from .credentials import CredentialRepository
 from .history import HistoryEntry, HistoryRepository
 
