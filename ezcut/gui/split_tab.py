@@ -115,7 +115,7 @@ class SplitTab:
             7,
             "재생 속도",
             self.speed_multiplier_var,
-            values=("1.0x", "1.5x", "2.0x", "3.0x"),
+            values=("1.0x", "1.5x"),
             width=10,
         )
 
@@ -207,7 +207,7 @@ class SplitTab:
         ).grid(row=5, column=0, sticky="w", pady=(12, 0))
         ttk.Label(
             self.frame,
-            text="재생 속도는 결과 GIF의 전체 실행 시간을 압축합니다. 예: 2.0x = 절반 시간",
+            text="재생 속도는 결과 GIF의 전체 실행 시간을 압축합니다. 예: 1.5x = 약 2/3 시간",
         ).grid(row=6, column=0, sticky="w", pady=(4, 0))
 
     def _add_entry_row(
@@ -565,7 +565,7 @@ class SplitTab:
     def _parse_speed_multiplier(value: str) -> float:
         text = value.strip().lower().removesuffix("x")
         try:
-            return min(max(float(text), 1.0), 3.0)
+            return min(max(float(text), 1.0), 1.5)
         except ValueError:
             return 1.0
 

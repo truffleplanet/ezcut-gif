@@ -25,8 +25,10 @@ def apply_frame_step(
         durations = [d * frame_step for d in durations[::frame_step]]
 
     if speed_multiplier != 1.0:
+        min_duration = 40
         durations = [
-            max(20, int(round(duration / speed_multiplier))) for duration in durations
+            max(min_duration, int(round(duration / speed_multiplier)))
+            for duration in durations
         ]
 
     return images, durations
