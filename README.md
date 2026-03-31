@@ -41,8 +41,13 @@ uv run ezcut-gui
 ```
 
 ## 빠른 시작
+인터랙티브 모드로 실행(권장)
+- `ezcut`: CLI
+- `ezcut-gui`: GUI
 
+인터랙티브 없이 사용하는 것도 가능합니다. 아래는 예시입니다.
 ```bash
+# 예시 
 # 1) GIF를 그리드로 분할
 ezcut split ./input.gif
 
