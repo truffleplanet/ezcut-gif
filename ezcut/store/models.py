@@ -49,8 +49,6 @@ class PreviewConfig:
     """미리보기 설정."""
 
     directory: Path
-    scale: float | None = None
-    background: str = "#000000"
 
 
 @dataclass(frozen=True)
@@ -104,7 +102,7 @@ class UploadConfig:
     name_prefix: str = ""
     user_data_dir: Path | None = None
     profile_directory: str | None = None
-    login_mode: str = "auto"
+    login_mode: str = "manual"  # manual | auto
     driver: UploadDriverConfig = field(default_factory=UploadDriverConfig)
     page: UploadPageConfig = field(default_factory=UploadPageConfig)
 
