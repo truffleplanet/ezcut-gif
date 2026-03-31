@@ -296,6 +296,7 @@ class UploadTab:
         return "대기 중"
 
     def _start_upload(self) -> None:
+        self.app_config = self.config_repo.load()
         config = self._build_config()
         if config is None:
             return
@@ -306,9 +307,12 @@ class UploadTab:
         self.task_state.message = ""
         self.task_state.success = 0
         self.task_state.failed.clear()
-        self.task_state.error_message = (
-            "브라우저가 열리면 터미널에서 Enter를 눌러 업로드를 계속 진행하세요."
-        )
+        if config.login_mode == "manual":
+            self.task_state.error_message = (
+                "브라우저가 열리면 터미널에서 Enter를 눌러 업로드를 계속 진행하세요."
+            )
+        else:
+            self.task_state.error_message = ""
         self.refresh_task_state()
 
         Thread(target=self._run_upload, args=(config,), daemon=True).start()
@@ -318,6 +322,18 @@ class UploadTab:
             self.task_state.error_message = "업로드 디렉토리를 선택해주세요."
             self.refresh_task_state()
             return None
+
+        if self.form_state.login_mode == "auto":
+            email = self.app_config.mattermost_email.strip()
+            if not email:
+                self.task_state.error_message = "저장된 Mattermost 이메일이 없습니다."
+                self.refresh_task_state()
+                return None
+
+            if not self.credentials_repo.has_password(email):
+                self.task_state.error_message = "저장된 Mattermost 비밀번호가 없습니다."
+                self.refresh_task_state()
+                return None
 
         return UploadConfig(
             directory=self.form_state.directory,
@@ -332,7 +348,12 @@ class UploadTab:
         )
 
     def _run_upload(self, config: UploadConfig) -> None:
-        uploader = Uploader(config=config, on_progress=self._handle_progress)
+        uploader = Uploader(
+            config=config,
+            app_config=self.app_config,
+            credentials=self.credentials_repo,
+            on_progress=self._handle_progress,
+        )
         try:
             result = uploader.run()
         except Exception as error:  # noqa: BLE001
