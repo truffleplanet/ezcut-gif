@@ -17,21 +17,35 @@ def parse_args():
     )
     parser.add_argument("input", help="입력 GIF 파일 경로")
     parser.add_argument(
-        "-s", "--size", type=int, default=128,
+        "-s",
+        "--size",
+        type=int,
+        default=128,
         help="출력 조각 크기 (정사각형, 기본: 128)",
     )
     parser.add_argument(
-        "-o", "--output-dir", default=None,
+        "-o",
+        "--output-dir",
+        default=None,
         help="출력 디렉토리 (기본: {입력파일명}_pieces/)",
     )
-    parser.add_argument("--cols", type=int, default=None, help="그리드 열 수 (수동 지정)")
-    parser.add_argument("--rows", type=int, default=None, help="그리드 행 수 (수동 지정)")
     parser.add_argument(
-        "-n", "--name", default=None,
+        "--cols", type=int, default=None, help="그리드 열 수 (수동 지정)"
+    )
+    parser.add_argument(
+        "--rows", type=int, default=None, help="그리드 행 수 (수동 지정)"
+    )
+    parser.add_argument(
+        "-n",
+        "--name",
+        default=None,
         help="이모지 베이스 이름 (기본: 입력파일명). 이모지 텍스트 파일 생성에 사용",
     )
     parser.add_argument(
-        "-m", "--max-size", type=int, default=None,
+        "-m",
+        "--max-size",
+        type=int,
+        default=None,
         help="조각당 최대 파일 용량 (KB 단위, 기본: 512)",
     )
     return parser.parse_args()
@@ -110,8 +124,9 @@ def save_piece(images, durations, output_path, loop):
 
 def apply_frame_step(crop_frames, target_size, frame_step):
     durations = [max(dur, 20) for _, dur in crop_frames]
-    images = [f.resize((target_size, target_size), Image.LANCZOS)
-              for f, _ in crop_frames]
+    images = [
+        f.resize((target_size, target_size), Image.LANCZOS) for f, _ in crop_frames
+    ]
 
     if frame_step > 1:
         images = images[::frame_step]
@@ -120,7 +135,9 @@ def apply_frame_step(crop_frames, target_size, frame_step):
     return images, durations
 
 
-def find_strategy(pieces_crop_frames, output_dir, filenames, loop, target_size, max_file_size):
+def find_strategy(
+    pieces_crop_frames, output_dir, filenames, loop, target_size, max_file_size
+):
     total = len(pieces_crop_frames)
 
     # Pass 1: 원본으로 전부 저장하면서 최악 조각 찾기
@@ -186,7 +203,9 @@ def main():
     cols, rows = resolve_grid(width, height, args.cols, args.rows)
 
     if rows > 26:
-        sys.exit(f"Error: 행 수가 26을 초과합니다 ({rows}행). a-z로 표현할 수 없습니다.")
+        sys.exit(
+            f"Error: 행 수가 26을 초과합니다 ({rows}행). a-z로 표현할 수 없습니다."
+        )
 
     piece_w = width // cols
     piece_h = height // rows
@@ -200,8 +219,10 @@ def main():
     if emoji_name is None:
         emoji_name = os.path.splitext(os.path.basename(args.input))[0]
 
-    print(f"Input: {width}x{height}, Grid: {cols}x{rows}, "
-          f"Piece: {piece_w}x{piece_h} -> {args.size}x{args.size}")
+    print(
+        f"Input: {width}x{height}, Grid: {cols}x{rows}, "
+        f"Piece: {piece_w}x{piece_h} -> {args.size}x{args.size}"
+    )
 
     frames = extract_frames(im)
     loop = im.info.get("loop", 0)
@@ -221,14 +242,17 @@ def main():
         x0 = col * piece_w
         y0 = row * piece_h
         box = (x0, y0, x0 + piece_w, y0 + piece_h)
-        crop_frames = [(full_frame.crop(box), duration)
-                       for full_frame, duration in frames]
+        crop_frames = [
+            (full_frame.crop(box), duration) for full_frame, duration in frames
+        ]
         pieces_crop_frames.append(crop_frames)
         filenames.append(f"{emoji_name}-{piece_id(row, col)}.gif")
 
     # 최적 전략 탐색 + 저장
     max_file_size = (args.max_size * 1024) if args.max_size else MAX_FILE_SIZE
-    find_strategy(pieces_crop_frames, output_dir, filenames, loop, args.size, max_file_size)
+    find_strategy(
+        pieces_crop_frames, output_dir, filenames, loop, args.size, max_file_size
+    )
 
     # 이모지 텍스트 생성
     emoji_lines = []

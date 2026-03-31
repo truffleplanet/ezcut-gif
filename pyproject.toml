@@ -6,11 +6,29 @@ build-backend = "hatchling.build"
 name = "ezcut"
 version = "0.1.0"
 description = "GIF를 그리드로 분할하여 각 조각을 개별 GIF로 저장하는 CLI 도구"
-requires-python = ">=3.9"
+requires-python = ">=3.14"
 dependencies = [
     "Pillow>=9.0",
     "selenium>=4.41.0",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.9",
+    "pre-commit>=4.0",
+]
+
 [project.scripts]
 ezcut = "ezcut:main"
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

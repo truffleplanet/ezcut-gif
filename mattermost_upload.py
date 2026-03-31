@@ -13,7 +13,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-
 VALID_EXTENSIONS = {".gif", ".png", ".jpg", ".jpeg"}
 NAME_SANITIZE_RE = re.compile(r"[^a-z0-9._-]+")
 
@@ -85,7 +84,8 @@ def normalize_name(stem: str, prefix: str) -> str:
 
 def list_files(directory: Path) -> list[Path]:
     files = [
-        path for path in sorted(directory.iterdir())
+        path
+        for path in sorted(directory.iterdir())
         if path.is_file() and path.suffix.lower() in VALID_EXTENSIONS
     ]
     if not files:
@@ -146,13 +146,17 @@ def upload_one(
 
     try:
         wait.until(
-            lambda d: d.current_url != add_url
-            or not d.find_elements(By.CSS_SELECTOR, "input#name")
+            lambda d: (
+                d.current_url != add_url
+                or not d.find_elements(By.CSS_SELECTOR, "input#name")
+            )
         )
     except TimeoutException:
         # 실패 메시지가 떠도 name input은 그대로 남아있을 수 있다.
         # 이 경우 상단 alert 문구를 먼저 찾아서 예외로 올린다.
-        alerts = driver.find_elements(By.CSS_SELECTOR, ".alert, .error, .has-error, .help-block")
+        alerts = driver.find_elements(
+            By.CSS_SELECTOR, ".alert, .error, .has-error, .help-block"
+        )
         messages = [alert.text.strip() for alert in alerts if alert.text.strip()]
         joined = " | ".join(messages) if messages else "저장 후 페이지 변화가 없습니다."
         raise RuntimeError(joined)
@@ -166,9 +170,9 @@ def main() -> int:
         return 1
 
     files = list_files(directory)
-    files = files[args.start_index - 1:]
+    files = files[args.start_index - 1 :]
     if args.limit is not None:
-        files = files[:args.limit]
+        files = files[: args.limit]
 
     if not files:
         print("조건에 맞는 업로드 대상 파일이 없습니다.")

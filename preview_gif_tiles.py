@@ -125,7 +125,9 @@ def open_tiles(grid: list[list[Path]]) -> tuple[list[Tile], int, int, tuple[int,
     tile_size = Counter(sizes).most_common(1)[0][0]
     for tile in tiles:
         if tile.current_frame.size != tile_size:
-            tile.current_frame = tile.current_frame.resize(tile_size, Image.Resampling.LANCZOS)
+            tile.current_frame = tile.current_frame.resize(
+                tile_size, Image.Resampling.LANCZOS
+            )
 
     return tiles, rows, cols, tile_size
 
@@ -148,7 +150,9 @@ def advance_tile(tile: Tile, event_time_ms: int, tile_size: tuple[int, int]) -> 
     tile.frame_index += 1
     tile.current_frame, tile.current_duration_ms = load_first_frame(tile.image)
     if tile.current_frame.size != tile_size:
-        tile.current_frame = tile.current_frame.resize(tile_size, Image.Resampling.LANCZOS)
+        tile.current_frame = tile.current_frame.resize(
+            tile_size, Image.Resampling.LANCZOS
+        )
     tile.next_change_ms = event_time_ms + tile.current_duration_ms
     return True
 
@@ -184,7 +188,9 @@ class PreviewApp:
         self.root.bind("r", self.restart)
         self.root.bind("<Escape>", lambda _event: self.root.destroy())
 
-        self.image_label = tk.Label(self.root, bg=background, bd=0, highlightthickness=0)
+        self.image_label = tk.Label(
+            self.root, bg=background, bd=0, highlightthickness=0
+        )
         self.image_label.pack(fill="both", expand=True)
 
         self.canvas_image = Image.new(
@@ -217,7 +223,10 @@ class PreviewApp:
         scale = self.computed_scale()
         if scale != 1.0:
             display = self.canvas_image.resize(
-                (max(1, int(self.full_width * scale)), max(1, int(self.full_height * scale))),
+                (
+                    max(1, int(self.full_width * scale)),
+                    max(1, int(self.full_height * scale)),
+                ),
                 Image.Resampling.NEAREST,
             )
         else:
@@ -227,7 +236,11 @@ class PreviewApp:
         self.image_label.configure(image=self.tk_image)
 
     def next_event_ms(self) -> int | None:
-        pending = [tile.next_change_ms for tile in self.tiles if tile.next_change_ms is not None]
+        pending = [
+            tile.next_change_ms
+            for tile in self.tiles
+            if tile.next_change_ms is not None
+        ]
         return min(pending) if pending else None
 
     def schedule_next_tick(self) -> None:
@@ -254,7 +267,9 @@ class PreviewApp:
 
         self.timeline_ms = event_time
         for tile in self.tiles:
-            if tile.next_change_ms == event_time and advance_tile(tile, event_time, self.tile_size):
+            if tile.next_change_ms == event_time and advance_tile(
+                tile, event_time, self.tile_size
+            ):
                 self.paste_tile(tile)
 
         self.render_frame()
