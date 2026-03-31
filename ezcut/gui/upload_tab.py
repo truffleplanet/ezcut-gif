@@ -2,7 +2,7 @@ import re
 import tkinter as tk
 from dataclasses import replace
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
 from tkinter import filedialog, ttk
 
 from ezcut.repository import ConfigRepository, CredentialRepository
@@ -50,6 +50,8 @@ class UploadTab:
         self.error_var = tk.StringVar(value=self.task_state.error_message or "-")
         self.failed_indices_var = tk.StringVar(value="-")
         self.account_status_var = tk.StringVar(value=self._account_status_text())
+        self._manual_login_window: tk.Toplevel | None = None
+        self._manual_login_event: Event | None = None
 
         self._build_form()
         self._bind_state()
@@ -309,7 +311,7 @@ class UploadTab:
         self.task_state.failed.clear()
         if config.login_mode == "manual":
             self.task_state.error_message = (
-                "브라우저가 열리면 터미널에서 Enter를 눌러 업로드를 계속 진행하세요."
+                "브라우저에서 로그인한 뒤 계속 진행 버튼을 눌러주세요."
             )
         else:
             self.task_state.error_message = ""
@@ -348,11 +350,17 @@ class UploadTab:
         )
 
     def _run_upload(self, config: UploadConfig) -> None:
+        self._manual_login_event = Event()
         uploader = Uploader(
             config=config,
             app_config=self.app_config,
             credentials=self.credentials_repo,
             on_progress=self._handle_progress,
+            wait_for_manual_login=(
+                self._wait_for_manual_login_confirmation
+                if config.login_mode == "manual"
+                else None
+            ),
         )
         try:
             result = uploader.run()
@@ -379,6 +387,7 @@ class UploadTab:
         self.refresh_task_state()
 
     def _finish_upload_success(self, result) -> None:
+        self._close_manual_login_window()
         self.task_state.is_running = False
         self.task_state.success = result.success
         self.task_state.failed = list(result.failed)
@@ -387,10 +396,65 @@ class UploadTab:
         self.refresh_task_state()
 
     def _finish_upload_error(self, message: str) -> None:
+        self._close_manual_login_window()
         self.task_state.is_running = False
         self.task_state.message = ""
         self.task_state.error_message = message
         self.refresh_task_state()
+
+    def _wait_for_manual_login_confirmation(self) -> None:
+        if self._manual_login_event is None:
+            raise RuntimeError("수동 로그인 대기 이벤트가 준비되지 않았습니다.")
+
+        self.frame.after(0, self._show_manual_login_window)
+        self._manual_login_event.wait()
+
+    def _show_manual_login_window(self) -> None:
+        if (
+            self._manual_login_window is not None
+            and self._manual_login_window.winfo_exists()
+        ):
+            self._manual_login_window.deiconify()
+            self._manual_login_window.lift()
+            self._manual_login_window.focus_force()
+            return
+
+        window = tk.Toplevel(self.frame)
+        window.title("Mattermost 로그인 확인")
+        window.resizable(False, False)
+
+        ttk.Label(
+            window,
+            text="브라우저에서 Mattermost 로그인을 완료한 뒤\n아래 버튼을 눌러 업로드를 계속 진행하세요.",
+            justify="center",
+        ).pack(padx=20, pady=(20, 12))
+
+        ttk.Button(
+            window,
+            text="로그인 완료, 계속 진행",
+            command=self._confirm_manual_login,
+        ).pack(pady=(0, 20))
+
+        window.protocol("WM_DELETE_WINDOW", lambda: None)
+        window.transient(self.frame.winfo_toplevel())
+        window.grab_set()
+        window.lift()
+        window.focus_force()
+        self._manual_login_window = window
+
+    def _confirm_manual_login(self) -> None:
+        if self._manual_login_event is not None:
+            self._manual_login_event.set()
+        self._close_manual_login_window()
+
+    def _close_manual_login_window(self) -> None:
+        if (
+            self._manual_login_window is not None
+            and self._manual_login_window.winfo_exists()
+        ):
+            self._manual_login_window.grab_release()
+            self._manual_login_window.destroy()
+        self._manual_login_window = None
 
     def _account_status_text(self) -> str:
         email = self.email_var.get().strip() or self.app_config.mattermost_email

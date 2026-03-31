@@ -1,4 +1,5 @@
 import time
+from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -31,11 +32,13 @@ class Uploader:
         app_config: AppConfig | None = None,
         credentials: CredentialRepository | None = None,
         on_progress: ProgressCallback | None = None,
+        wait_for_manual_login: Callable[[], None] | None = None,
     ) -> None:
         self.config = config
         self.app_config = app_config
         self.credentials = credentials
         self.on_progress = on_progress
+        self.wait_for_manual_login = wait_for_manual_login
         self.files: list = []
 
     def run(self) -> UploadResult:
@@ -133,9 +136,14 @@ class Uploader:
     def _manual_login(self, driver, wait, add_url: str) -> None:
         """사용자가 직접 로그인할 수 있도록 대기한다."""
         self._open_browser_view(driver, wait, add_url)
-        print("브라우저가 열렸습니다.")
-        print("meeting.ssafy 로그인 상태가 아니라면 직접 로그인한 뒤 Enter를 누르세요.")
-        input()
+        if self.wait_for_manual_login is not None:
+            self.wait_for_manual_login()
+        else:
+            print("브라우저가 열렸습니다.")
+            print(
+                "meeting.ssafy 로그인 상태가 아니라면 직접 로그인한 뒤 Enter를 누르세요."
+            )
+            input()
         self._wait_until_add_page(driver, wait)
 
     def _auto_login(self, driver, wait, add_url: str) -> None:
