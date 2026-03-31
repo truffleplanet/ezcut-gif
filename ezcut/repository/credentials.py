@@ -10,17 +10,30 @@ class CredentialRepository:
     def __init__(self, service_name: str = SERVICE_NAME) -> None:
         self.service_name = service_name
 
-    def get_password(self, username: str) -> str | None:
+    def get_password(self, email: str) -> str | None:
         keyring = self._load_keyring()
-        return keyring.get_password(self.service_name, username)
+        return keyring.get_password(self.service_name, self._normalize_account(email))
 
-    def set_password(self, username: str, password: str) -> None:
+    def set_password(self, email: str, password: str) -> None:
         keyring = self._load_keyring()
-        keyring.set_password(self.service_name, username, password)
+        keyring.set_password(
+            self.service_name,
+            self._normalize_account(email),
+            password,
+        )
 
-    def delete_password(self, username: str) -> None:
+    def has_password(self, email: str) -> bool:
+        return self.get_password(email) is not None
+
+    def delete_password(self, email: str) -> None:
         keyring = self._load_keyring()
-        keyring.delete_password(self.service_name, username)
+        account = self._normalize_account(email)
+
+        try:
+            keyring.delete_password(self.service_name, account)
+        except Exception as error:
+            if error.__class__.__name__ != "PasswordDeleteError":
+                raise
 
     @staticmethod
     def _load_keyring() -> Any:
@@ -30,3 +43,7 @@ class CredentialRepository:
             raise RuntimeError(
                 "keyring 패키지가 설치되지 않았습니다. 자격 증명 저장소를 사용하려면 keyring이 필요합니다."
             ) from error
+
+    @staticmethod
+    def _normalize_account(email: str) -> str:
+        return email.strip().lower()
