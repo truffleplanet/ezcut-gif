@@ -1,2 +1,7 @@
+"""ezcut CLI 엔트리포인트."""
+
+from .app import app
+
+
 def main() -> None:
-    raise SystemExit("CLI skeleton is not implemented yet.")
+    app()
