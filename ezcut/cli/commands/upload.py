@@ -1,27 +1,16 @@
-"""ezcut upload 커맨드.
-
-Phase 1에서는 manual login 기준으로 구현한다.
-"""
-
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
 
-from ...repository.config import ConfigRepository
-from ...repository.history import HistoryRepository
-from ...services.uploader import Uploader
-from ...store.models import UploadConfig
-from ..prompts import (
+from ezcut.cli.prompts import (
     ask_confirm,
     ask_directory,
     ask_float,
     ask_int,
     step_header,
 )
-from ..render import (
+from ezcut.cli.render import (
     console,
     make_progress,
     make_progress_callback,
@@ -29,6 +18,10 @@ from ..render import (
     print_error,
     render_upload_result,
 )
+from ezcut.services.config import ConfigService
+from ezcut.services.history import HistoryService
+from ezcut.services.uploader import Uploader
+from ezcut.store.models import UploadConfig
 
 
 def upload_cmd(
@@ -84,7 +77,8 @@ def upload_cmd(
 
     assert directory is not None  # noqa: S101
 
-    app_config = ConfigRepository().load()
+    config_service = ConfigService()
+    app_config = config_service.load_config()
 
     config = UploadConfig(
         directory=directory,
@@ -117,26 +111,43 @@ def upload_cmd(
     console.print()
     render_upload_result(result)
 
+    if result.success > 0:
+        _mark_directory_uploaded(directory)
+
+        from .share import offer_gallery_share
+
+        console.print()
+        offer_gallery_share()
+
+
+def _mark_directory_uploaded(directory: Path) -> None:
+    """업로드 성공 후 히스토리 엔트리에 uploaded 플래그를 기록한다."""
+    from ezcut.services.exceptions import HistoryNotFoundError
+
+    history_service = HistoryService()
+    try:
+        entry = history_service.resolve_from_directory(directory)
+        history_service.mark_uploaded(entry)
+    except HistoryNotFoundError:
+        pass  # split 없이 직접 디렉토리를 지정한 경우 — 무시
+
 
 def _resolve_last() -> Path:
     """최근 히스토리에서 출력 디렉토리를 가져온다."""
-    latest = HistoryRepository().latest()
-    if latest is None:
-        print_error("히스토리가 비어 있습니다. 먼저 split을 실행해주세요.")
-        raise typer.Exit(1)
-    path = Path(latest.output_dir)
-    if not path.is_dir():
-        print_error(f"디렉토리를 찾을 수 없습니다: {path}")
-        raise typer.Exit(1)
-    print_dim(f"Using latest: {latest.emoji_name} ({path})")
-    return path
+    from ezcut.services.exceptions import HistoryNotFoundError
+
+    try:
+        return HistoryService().resolve_last_path()
+    except HistoryNotFoundError as exc:
+        print_error(str(exc))
+        raise typer.Exit(1) from exc
 
 
 def _wizard() -> tuple[Path, int | None, int, float]:
     """인터랙티브 위자드로 upload 설정을 수집한다."""
     total_steps = 3
-    history = HistoryRepository()
-    latest = history.latest()
+    history_service = HistoryService()
+    latest = history_service.get_latest()
 
     step_header(1, total_steps, "업로드 대상")
     if latest:

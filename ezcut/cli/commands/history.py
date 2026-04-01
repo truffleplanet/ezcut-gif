@@ -1,16 +1,9 @@
-"""ezcut history 커맨드.
-
-작업 히스토리를 조회한다. Phase 1에서는 읽기 전용.
-"""
-
-from __future__ import annotations
-
 from typing import Annotated
 
 import typer
 
-from ...repository.history import HistoryRepository
-from ..render import render_history_latest, render_history_table
+from ezcut.cli.render import render_history_latest, render_history_table
+from ezcut.services.history import HistoryService
 
 
 def history_cmd(
@@ -24,14 +17,14 @@ def history_cmd(
     ] = False,
 ) -> None:
     """작업 히스토리를 조회한다."""
-    history = HistoryRepository()
+    history_service = HistoryService()
 
     if latest:
-        entry = history.latest()
+        entry = history_service.get_latest()
         if entry is None:
             typer.echo("  히스토리가 비어 있습니다.")
             raise typer.Exit()
         render_history_latest(entry)
     else:
-        entries = history.list(limit=limit)
+        entries = history_service.list_history(limit=limit)
         render_history_table(entries)

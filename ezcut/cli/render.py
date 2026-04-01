@@ -1,10 +1,3 @@
-"""Rich 기반 렌더링 헬퍼.
-
-배너, 패널, 테이블, 프로그레스 바 등 CLI 전체에서 재사용하는 출력 요소를 제공한다.
-"""
-
-from __future__ import annotations
-
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -22,9 +15,9 @@ from rich.table import Table
 from rich.text import Text
 
 if TYPE_CHECKING:
-    from ..repository.history import HistoryEntry
-    from ..store.models import SplitResult, UploadResult
-    from ..store.state import ProgressCallback
+    from ezcut.services.history import HistoryEntry
+    from ezcut.store.models import ShareResult, SplitResult, UploadResult
+    from ezcut.store.state import ProgressCallback
 
 # ── 공용 콘솔 ─────────────────────────────────────────────
 console = Console()
@@ -54,7 +47,7 @@ def _load_asset(name: str) -> str:
 
 def render_banner() -> None:
     """미쿠 ASCII art + 타이틀을 출력한다."""
-    art = _load_asset("miku_filled.txt")
+    art = _load_asset("miku.txt")
     if art:
         console.print(Text(art, style=ACCENT))
     console.print()
@@ -211,6 +204,30 @@ def render_upload_result(result: UploadResult) -> None:
         console.print(f"  [{ERROR}]Failed files:[/]")
         for path, reason in result.failed:
             console.print(f"    [{DIM}]{path.name}[/]  {reason}")
+
+
+# ── Share 결과 ───────────────────────────────────────────
+
+
+def render_share_result(result: ShareResult) -> None:
+    """갤러리 공유 결과를 출력한다."""
+    if result.success:
+        table = Table(show_header=False, box=None, padding=(0, 2), expand=False)
+        table.add_column(style=LABEL, no_wrap=True)
+        table.add_column(style=VALUE)
+
+        table.add_row("Name", result.emoji_name)
+        table.add_row("Gallery", result.gallery_url)
+
+        panel = Panel(
+            table,
+            title="[bold green]Share complete[/]",
+            border_style=SUCCESS,
+            padding=(1, 1),
+        )
+        console.print(panel)
+    else:
+        print_error(f"공유 실패: {result.error_message}")
 
 
 # ── 프로그레스 바 ─────────────────────────────────────────

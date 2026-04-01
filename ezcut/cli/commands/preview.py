@@ -1,11 +1,3 @@
-"""ezcut preview 커맨드.
-
-Tk 기반 경량 미리보기 창을 열어 타일 GIF 애니메이션을 재생한다.
-Space=일시정지/재생, R=초기화, Escape/Q=종료.
-"""
-
-from __future__ import annotations
-
 import tkinter as tk
 from pathlib import Path
 from time import monotonic
@@ -14,9 +6,9 @@ from typing import Annotated, Optional
 import typer
 from PIL import Image, ImageTk
 
-from ...services.previewer import Previewer
-from ...store.models import PreviewConfig
-from ..render import print_dim, print_error
+from ezcut.cli.render import print_dim, print_error
+from ezcut.services.previewer import Previewer
+from ezcut.store.models import PreviewConfig
 
 
 def preview_cmd(
@@ -60,18 +52,14 @@ def preview_cmd(
 
 def _resolve_last() -> Path:
     """최근 히스토리에서 출력 디렉토리를 가져온다."""
-    from ...repository.history import HistoryRepository
+    from ezcut.services.exceptions import HistoryNotFoundError
+    from ezcut.services.history import HistoryService
 
-    latest = HistoryRepository().latest()
-    if latest is None:
-        print_error("히스토리가 비어 있습니다. 먼저 split을 실행해주세요.")
-        raise typer.Exit(1)
-    path = Path(latest.output_dir)
-    if not path.is_dir():
-        print_error(f"디렉토리를 찾을 수 없습니다: {path}")
-        raise typer.Exit(1)
-    print_dim(f"Using latest: {latest.emoji_name} ({path})")
-    return path
+    try:
+        return HistoryService().resolve_last_path()
+    except HistoryNotFoundError as exc:
+        print_error(str(exc))
+        raise typer.Exit(1) from exc
 
 
 # ── Tk 미리보기 창 ────────────────────────────────────────

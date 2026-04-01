@@ -1,20 +1,13 @@
-"""Typer 루트 앱 정의.
-
-무인자 실행 시 인터랙티브 홈 루프를, 서브커맨드 지정 시 해당 명령을 실행한다.
-홈 화면은 arrow-key 메뉴로 동작하며, 커맨드 완료 후 홈으로 복귀한다.
-"""
-
-from __future__ import annotations
-
 import typer
 
-from ..repository.history import HistoryRepository
-from .commands.history import history_cmd
-from .commands.preview import preview_cmd
-from .commands.split import split_cmd
-from .commands.upload import upload_cmd
-from .prompts import ask_select
-from .render import console, render_banner, render_home_status
+from ezcut.cli.commands.history import history_cmd
+from ezcut.cli.commands.preview import preview_cmd
+from ezcut.cli.commands.share import share_cmd
+from ezcut.cli.commands.split import split_cmd
+from ezcut.cli.commands.upload import upload_cmd
+from ezcut.cli.prompts import ask_select
+from ezcut.cli.render import console, render_banner, render_home_status
+from ezcut.services.history import HistoryService
 
 app = typer.Typer(
     name="ezcut",
@@ -29,12 +22,14 @@ app.command(name="split")(split_cmd)
 app.command(name="preview")(preview_cmd)
 app.command(name="history")(history_cmd)
 app.command(name="upload")(upload_cmd)
+app.command(name="share")(share_cmd)
 
 # ── 홈 메뉴 항목 ─────────────────────────────────────────
 _HOME_ACTIONS: list[tuple[str, str]] = [
     ("split", "Split   — GIF를 그리드로 분할"),
     ("preview", "Preview — 타일 미리보기"),
     ("upload", "Upload  — Mattermost에 이모지 업로드"),
+    ("share", "Share   — 갤러리에 이모지 공유"),
     ("history", "History — 작업 히스토리 조회"),
     ("quit", "Quit"),
 ]
@@ -43,6 +38,7 @@ _DISPATCH = {
     "split": split_cmd,
     "preview": preview_cmd,
     "upload": upload_cmd,
+    "share": share_cmd,
     "history": history_cmd,
 }
 
@@ -69,8 +65,8 @@ def _home_loop(ctx: typer.Context) -> None:
             console.rule(style="dim")
             console.print()
 
-        history = HistoryRepository()
-        latest = history.latest()
+        history_service = HistoryService()
+        latest = history_service.get_latest()
         render_home_status(latest, [])
 
         try:

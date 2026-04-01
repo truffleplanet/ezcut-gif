@@ -1,17 +1,9 @@
-"""재사용 가능한 인터랙티브 프롬프트 시스템.
-
-questionary 기반 arrow-key 선택, 경로 자동완성, 미쿠 테마 스타일을 제공한다.
-새로운 커맨드를 추가할 때 이 모듈의 함수를 조합하여 위자드를 구성한다.
-"""
-
-from __future__ import annotations
-
 from pathlib import Path
 
 import questionary
 from questionary import Style
 
-from .render import console
+from ezcut.cli.render import console
 
 # ── 미쿠 테마 스타일 ──────────────────────────────────────
 _STYLE = Style(
