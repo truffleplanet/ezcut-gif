@@ -1,6 +1,6 @@
 # ezcut
 
-애니메이션 GIF를 N×M 그리드 타일로 분할하고, 미리보기하고, Mattermost 커스텀 이모지로 업로드하는 도구입니다.
+애니메이션 GIF를 N×M 그리드 타일로 분할하고, 미리보기하고, Mattermost 커스텀 이모지로 업로드하며, [Ezcut Gallery](https://github.com/S-P-A-N/ezcut-gallery)에 손쉽게 공유할 수 있는 도구입니다.
 
 ## 요구 사항
 
@@ -58,7 +58,11 @@ ezcut preview --last
 ezcut upload --last
 ```
 
-`--last` 옵션은 가장 최근 split 결과를 자동으로 참조합니다.
+# 4) 이모지를 갤러리에 공유
+ezcut share --last
+```
+
+`--last` 옵션은 가장 최근 split 결과를 자동으로 참조하며, 대상 경로가 주어지지 않을 경우 대화형(Interactive)으로 인터페이스가 표시되어 이전 히스토리 내역 중 하나를 간편하게 골라서 작업을 이어나갈 수 있습니다.
 
 ## 기여하기
 

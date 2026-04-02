@@ -5,7 +5,7 @@ from tkinter import filedialog, ttk
 
 from PIL import Image, ImageTk
 
-from ezcut.services import Previewer
+from ezcut.services.previewer import Previewer
 from ezcut.store.models import PreviewConfig
 from ezcut.store.state import PreviewTaskState
 

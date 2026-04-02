@@ -45,7 +45,10 @@ class Uploader:
         """업로드 작업을 실행하고 결과를 반환한다."""
         self.files = list_image_files(self.config.directory)
         self.files = self.files[self.config.start_index - 1 :]
+        limit_applied = False
         if self.config.limit is not None:
+            if len(self.files) > self.config.limit:
+                limit_applied = True
             self.files = self.files[: self.config.limit]
 
         if not self.files:
@@ -60,8 +63,10 @@ class Uploader:
         try:
             self._login(driver, wait, add_url)
             total = len(self.files)
+            success_indices: list[int] = []
 
-            for index, image_path in enumerate(self.files, start=1):
+            for i, image_path in enumerate(self.files):
+                current_index = self.config.start_index + i  # 1-based index
                 emoji_name = normalize_emoji_name(
                     image_path.stem,
                     self.config.name_prefix,
@@ -73,7 +78,7 @@ class Uploader:
 
                 if self.on_progress is not None:
                     self.on_progress(
-                        index,
+                        i + 1,
                         total,
                         f"{image_path.name} -> {emoji_name}",
                     )
@@ -81,13 +86,19 @@ class Uploader:
                 try:
                     self._upload_one(driver, wait, add_url, image_path, emoji_name)
                     success += 1
+                    success_indices.append(current_index)
                     time.sleep(self.config.pause)
                 except Exception as error:  # noqa: BLE001
                     failed.append((image_path, str(error)))
         finally:
             driver.quit()
 
-        return UploadResult(success=success, failed=failed)
+        return UploadResult(
+            success=success,
+            failed=failed,
+            reached_end=not limit_applied,
+            success_indices=success_indices,
+        )
 
     def _login(self, driver, wait, add_url: str) -> None:
         """로그인 방식을 분기한다."""

@@ -1,34 +1,26 @@
-"""ezcut split 커맨드.
-
-인자가 모두 주어지면 즉시 실행, 생략된 인자가 있으면 위자드로 보충한다.
-"""
-
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
-from PIL import Image
 
-from ...repository.history import HistoryRepository
-from ...services.splitter import Splitter
-from ...store.models import SplitConfig
-from ...utils.grid import compute_grid, recommend_grid
-from ..prompts import (
+from ezcut.cli.prompts import (
     ask_int,
     prompt_emoji_name,
     prompt_input_path,
     prompt_output_dir,
     step_header,
 )
-from ..render import (
+from ezcut.cli.render import (
     console,
     make_progress,
     make_progress_callback,
     print_error,
     render_split_summary,
 )
+from ezcut.services.history import HistoryService
+from ezcut.services.split_workflow import SplitWorkflow
+from ezcut.services.splitter import Splitter
+from ezcut.store.models import SplitConfig
 
 
 def split_cmd(
@@ -87,16 +79,18 @@ def split_cmd(
         speed_multiplier=speed,
     )
 
-    history = HistoryRepository()
+    history_service = HistoryService()
 
     console.print()
     with make_progress() as progress:
         task = progress.add_task("Preparing...", total=None)
         callback = make_progress_callback(progress, task)
-        splitter = Splitter(config, history=history, on_progress=callback)
+        workflow = SplitWorkflow(
+            config, history_service=history_service, on_progress=callback
+        )
 
         try:
-            result = splitter.run()
+            result = workflow.run()
         except (FileNotFoundError, ValueError) as exc:
             progress.stop()
             print_error(str(exc))
@@ -119,10 +113,7 @@ def _wizard(
 
     # 추천 그리드 미리 계산하여 표시
     try:
-        with Image.open(path) as im:
-            width, height = im.size
-        base_cols, base_rows = compute_grid(width, height)
-        rec_cols, rec_rows = recommend_grid(base_cols, base_rows)
+        width, height, _, _, rec_cols, rec_rows = Splitter.get_grid_recommendation(path)
         console.print(f"    [dim]원본 크기: {width} x {height}[/]")
         console.print(
             f"    [dim]추천 조각 수: "

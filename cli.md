@@ -7,6 +7,7 @@
 - [`ezcut split` - GIF 분할](#ezcut-split---gif-분할)
 - [`ezcut preview` - 미리보기](#ezcut-preview---미리보기)
 - [`ezcut upload` - Mattermost 업로드](#ezcut-upload---mattermost-업로드)
+- [`ezcut share` - 갤러리 공유](#ezcut-share---갤러리-공유)
 - [`ezcut history` - 작업 히스토리](#ezcut-history---작업-히스토리)
 - [전체 워크플로 예시](#전체-워크플로-예시)
 - [경로 및 명령 점검 메모](#경로-및-명령-점검-메모)
@@ -54,7 +55,7 @@ uv run ezcut history
 ezcut
 ```
 
-각 명령어도 필수 인자를 생략하면 위자드가 단계별로 안내합니다.
+각 명령어도 필수 인자를 생략하면 위자드나 대화형 프롬프트가 단계별로 안내합니다. 또한 각 선택 깊이에서 **`Ctrl+C` (또는 `Esc`)** 키를 통해 언제든 안전하게 현재 선택(위자드)을 취소하고 홈 메뉴로 뒤로 무를 수 있습니다.
 
 ## `ezcut split` - GIF 분할
 
@@ -183,13 +184,32 @@ ezcut upload ./output_pieces --limit 1
 ezcut upload ./output_pieces --start-index 3
 ```
 
+인자를 생략하면 터미널 화면 자체에서 **최근 히스토리를 목록 형태로 불러와 쌍방향으로 선택**할 수 있도록 유연한 가이드를 제공합니다.
+
+## `ezcut share` - 갤러리 공유
+
+```bash
+ezcut share [디렉토리] [옵션]
+```
+
+생성된 커스텀 이모지 결과물을 중앙 [Ezcut Gallery](https://github.com/S-P-A-N/ezcut-gallery)에 투고합니다.
+
+### 옵션
+
+| 옵션 | 설명 |
+| --- | --- |
+| `--last` | 가장 최근 split 결과를 공유 |
+| `--headless` | 브라우저 창을 띄우지 않고 공유 진행 |
+
+`upload`와 마찬가지로 대상을 생략하면 이전 작업 내역(히스토리)에서 원하는 대상을 대화형 프롬프트로 찾아 고를 수 있게 안내가 나옵니다.
+
 ## `ezcut history` - 작업 히스토리
 
 ```bash
 ezcut history [옵션]
 ```
 
-이전 split 작업 기록을 조회합니다.
+이전 split 작업 기록과 함께 **Mattermost 업로드 여부**, **갤러리 공유 여부** 상태를 조회합니다.
 
 ### 옵션
 
@@ -223,8 +243,11 @@ ezcut preview --last
 # 3) 1개만 테스트 업로드
 ezcut upload --last --limit 1
 
-# 4) 전체 업로드
+# 4) 일괄 업로드 진행
 ezcut upload --last
+
+# 5) 갤러리 공유
+ezcut share --last
 ```
 
 ## 경로 및 명령 점검 메모

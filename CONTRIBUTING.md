@@ -37,6 +37,22 @@ uv run ruff check --fix .   # 린트 자동 수정 및 임포트 정렬
 
 CI에서도 동일한 검사가 실행됩니다 (`ruff check` + `ruff format --check`).
 
+### 코딩 컨벤션 및 개발 규칙
+
+1. **절대 경로 임포트(Absolute Imports) 지향**:
+   프로젝트 내부 모듈을 참조할 때는 되도록 최상위 패키지 기준의 절대 경로를 사용합니다. 
+   - ⭕ 권장: `from ezcut.services.history import HistoryEntry`
+   - ❌ 지양: `from ..services.history import HistoryEntry` (단, 동일 폴더 내의 매우 짧은 상대 경로는 예외적으로 허용)
+
+2. **타입 힌트(Type Hinting) 의무화**:
+   가독성과 안전성을 위해 함수의 모든 매개변수와 반환값에 Python 타입 힌트를 반드시 명시합니다.
+
+3. **관심사 분리 (Separation of Concerns)**:
+   인터페이스 계층(`CLI`, `GUI`)에는 절대 복잡한 비즈니스 로직(예: IO 작업, 통신)을 포함하지 말고, 반드시 `services` 영역으로 분리하여 호출합니다.
+
+4. **상태 관리 구조와 불변성**:
+   핵심 데이터 모델이나 설정 등은 가급적 `frozen=True` 옵션이 켜진 `dataclasses`를 사용하여 설계합니다.
+
 ## 프로젝트 구조
 
 ```text

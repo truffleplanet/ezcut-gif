@@ -4,12 +4,11 @@ from pathlib import Path
 from threading import Thread
 from tkinter import filedialog, ttk
 
-from PIL import Image
-
-from ezcut.services import Splitter
+from ezcut.services.history import HistoryService
+from ezcut.services.split_workflow import SplitWorkflow
+from ezcut.services.splitter import Splitter
 from ezcut.store.models import SplitConfig
 from ezcut.store.state import SplitFormState, SplitTaskState
-from ezcut.utils.grid import compute_grid, recommend_grid
 
 
 class SplitTab:
@@ -336,8 +335,9 @@ class SplitTab:
 
     def _load_gif_metadata(self, path: Path) -> None:
         try:
-            with Image.open(path) as image:
-                width, height = image.size
+            width, height, base_cols, base_rows, rec_cols, rec_rows = (
+                Splitter.get_grid_recommendation(path)
+            )
         except Exception:  # noqa: BLE001
             self._base_cols = None
             self._base_rows = None
@@ -347,15 +347,10 @@ class SplitTab:
             self.recommended_grid_var.set("-")
             return
 
-        self._base_cols, self._base_rows = compute_grid(width, height)
-        self._recommended_cols, self._recommended_rows = recommend_grid(
-            self._base_cols,
-            self._base_rows,
-        )
+        self._base_cols, self._base_rows = base_cols, base_rows
+        self._recommended_cols, self._recommended_rows = rec_cols, rec_rows
         self.image_size_var.set(f"{width} x {height}")
-        self.recommended_grid_var.set(
-            f"{self._recommended_cols} x {self._recommended_rows}"
-        )
+        self.recommended_grid_var.set(f"{rec_cols} x {rec_rows}")
         self._apply_recommended_grid()
 
     def _fill_defaults_from_input(self, path: Path) -> None:
@@ -427,9 +422,14 @@ class SplitTab:
         )
 
     def _run_split(self, config: SplitConfig) -> None:
-        splitter = Splitter(config=config, on_progress=self._handle_progress)
+        history_service = HistoryService()
+        workflow = SplitWorkflow(
+            config=config,
+            history_service=history_service,
+            on_progress=self._handle_progress,
+        )
         try:
-            result = splitter.run()
+            result = workflow.run()
         except Exception as error:  # noqa: BLE001
             message = str(error)
             self.frame.after(

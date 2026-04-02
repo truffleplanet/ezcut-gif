@@ -70,6 +70,9 @@ class AppConfig:
     default_tile_size: int = 128
     default_max_file_size_kb: int = 512  # KB
 
+    # Gallery 기본설정
+    gallery_repo: str = "S-P-A-N/ezcut-gallery"
+
 
 @dataclass(frozen=True)
 class UploadDriverConfig:
@@ -115,3 +118,31 @@ class UploadResult:
 
     success: int
     failed: list[tuple[Path, str]]
+    reached_end: bool
+    success_indices: list[int] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class GalleryConfig:
+    """갤러리 공유 설정."""
+
+    gallery_repo: str = "S-P-A-N/ezcut-gallery"
+    emoji_name: str = ""
+    input_path: Path = Path()
+    output_dir: Path = Path()
+    cols: int = 0
+    rows: int = 0
+    tile_size: int = 128
+    frame_step: int = 1
+    tile_count: int = 0
+    author: str = ""
+
+
+@dataclass(frozen=True)
+class ShareResult:
+    """갤러리 공유 결과."""
+
+    success: bool
+    gallery_url: str = ""
+    emoji_name: str = ""
+    error_message: str = ""

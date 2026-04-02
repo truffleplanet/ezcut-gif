@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ezcut"
-version = "0.1.0"
+version = "0.2.0"
 description = "GIF를 그리드로 분할하여 Mattermost 커스텀 이모지로 업로드하는 CLI/GUI 도구"
 readme = "README.md"
 license = "MIT"
@@ -27,6 +27,7 @@ dependencies = [
     "selenium>=4.41.0",
     "typer>=0.24.1",
     "keyring>=25.7.0",
+    "requests>=2.33.1",
 ]
 
 [project.urls]

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import tomllib
 from dataclasses import replace
 from pathlib import Path
@@ -52,6 +50,9 @@ class ConfigRepository:
                     AppConfig.default_max_file_size_kb,
                 )
             ),
+            gallery_repo=raw_config.get("gallery", {}).get(
+                "repo", AppConfig.gallery_repo
+            ),
         )
 
     def save(self, config: AppConfig) -> None:
@@ -81,16 +82,37 @@ class ConfigRepository:
 
     @staticmethod
     def _serialize(config: AppConfig) -> str:
-        return (
-            "[mattermost]\n"
-            f'base_url = "{config.mattermost_base_url}"\n'
-            f'add_path = "{config.mattermost_add_path}"\n'
-            f'login_mode = "{config.mattermost_login_mode}"\n\n'
-            f'email = "{config.mattermost_email}"\n\n'
-            "[chrome]\n"
-            f'user_data_dir = "{config.chrome_user_data_dir}"\n'
-            f'profile = "{config.chrome_profile}"\n\n'
-            "[split]\n"
-            f"default_tile_size = {config.default_tile_size}\n"
-            f"default_max_file_size_kb = {config.default_max_file_size_kb}\n"
-        )
+        """AppConfig 객체를 TOML 문자열로 직렬화한다."""
+        sections = {
+            "mattermost": {
+                "base_url": config.mattermost_base_url,
+                "add_path": config.mattermost_add_path,
+                "login_mode": config.mattermost_login_mode,
+                "email": config.mattermost_email,
+            },
+            "chrome": {
+                "user_data_dir": config.chrome_user_data_dir,
+                "profile": config.chrome_profile,
+            },
+            "split": {
+                "default_tile_size": config.default_tile_size,
+                "default_max_file_size_kb": config.default_max_file_size_kb,
+            },
+            "gallery": {
+                "repo": config.gallery_repo,
+            },
+        }
+
+        lines = []
+        for section, fields in sections.items():
+            lines.append(f"[{section}]")
+            for key, value in fields.items():
+                if isinstance(value, str):
+                    # 최소한의 이스케이프 처리 (쌍따옴표)
+                    escaped = value.replace('"', '\\"')
+                    lines.append(f'{key} = "{escaped}"')
+                else:
+                    lines.append(f"{key} = {value}")
+            lines.append("")
+
+        return "\n".join(lines).strip() + "\n"

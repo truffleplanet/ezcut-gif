@@ -1,17 +1,15 @@
 import itertools
-from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
 
-from ..repository.history import HistoryEntry, HistoryRepository
-from ..store.models import SplitConfig, SplitResult
-from ..store.state import ProgressCallback
-from ..utils.emoji_txt import write_emoji_txt
-from ..utils.frames import extract_frames
-from ..utils.grid import resolve_grid
-from ..utils.naming import normalize_emoji_name, piece_id
-from ..utils.optimize import apply_frame_step, find_optimal_step, save_piece
+from ezcut.store.models import SplitConfig, SplitResult
+from ezcut.store.state import ProgressCallback
+from ezcut.utils.emoji_txt import write_emoji_txt
+from ezcut.utils.frames import extract_frames
+from ezcut.utils.grid import compute_grid, recommend_grid, resolve_grid
+from ezcut.utils.naming import normalize_emoji_name, piece_id
+from ezcut.utils.optimize import apply_frame_step, find_optimal_step, save_piece
 
 
 class Splitter:
@@ -20,11 +18,9 @@ class Splitter:
     def __init__(
         self,
         config: SplitConfig,
-        history: HistoryRepository | None = None,
         on_progress: ProgressCallback | None = None,
     ) -> None:
         self._config = config
-        self._history = history
         self._progress = on_progress
 
     def run(self) -> SplitResult:
@@ -79,21 +75,6 @@ class Splitter:
             piece_id_factory=lambda row, col: piece_id(row, col, col_pad),
         )
 
-        if self._history is not None:
-            self._history.add(
-                HistoryEntry(
-                    timestamp=datetime.now().isoformat(timespec="seconds"),
-                    input_path=str(cfg.input_path),
-                    output_dir=str(output_dir),
-                    emoji_name=emoji_name,
-                    cols=cols,
-                    rows=rows,
-                    tile_size=cfg.tile_size,
-                    frame_step=frame_step,
-                    tile_count=cols * rows,
-                )
-            )
-
         self._report(4, 4, "완료")
 
         return SplitResult(
@@ -105,8 +86,25 @@ class Splitter:
             emoji_txt_path=emoji_txt_path,
         )
 
+    @staticmethod
+    def get_grid_recommendation(
+        path: Path,
+    ) -> tuple[int, int, int, int, int, int]:
+        """GIF 파일의 추천 그리드 정보를 반환한다.
+
+        Returns:
+            (width, height, base_cols, base_rows, rec_cols, rec_rows)
+
+        Raises:
+            ValueError: GIF 파일을 열 수 없을 때.
+        """
+        with Image.open(path) as im:
+            width, height = im.size
+        base_cols, base_rows = compute_grid(width, height)
+        rec_cols, rec_rows = recommend_grid(base_cols, base_rows)
+        return width, height, base_cols, base_rows, rec_cols, rec_rows
+
     def _open_and_validate(self) -> Image.Image:
-        """입력 파일 존재 여부와 GIF 포맷을 검증하고 Image를 반환한다."""
         path = self._config.input_path
         if not path.is_file():
             raise FileNotFoundError(f"파일을 찾을 수 없습니다: {path}")
@@ -123,7 +121,6 @@ class Splitter:
         output_dir: Path,
         loop: int,
     ) -> int:
-        """2패스 최적화로 타일을 저장하고 최종 frame_step을 반환한다."""
         target_size = self._config.tile_size
         max_file_size = self._config.max_file_size_kb * 1024
         speed_multiplier = self._config.speed_multiplier

@@ -1,15 +1,16 @@
 import re
 import tkinter as tk
-from dataclasses import replace
 from pathlib import Path
 from threading import Event, Thread
 from tkinter import filedialog, ttk
 
-from ezcut.repository import ConfigRepository, CredentialRepository
-from ezcut.services import Uploader
-from ezcut.store.models import UploadConfig
+from ezcut.services.auth import AuthService
+from ezcut.services.config import ConfigService
+from ezcut.services.gallery import GalleryAPIError, GalleryService
+from ezcut.services.history import HistoryNotFoundError, HistoryService
+from ezcut.services.uploader import Uploader
+from ezcut.store.models import GalleryConfig, UploadConfig
 from ezcut.store.state import UploadFormState, UploadTaskState
-from ezcut.utils.emoji_txt import list_image_files
 
 
 class UploadTab:
@@ -19,15 +20,15 @@ class UploadTab:
 
     def __init__(
         self,
-        parent,
+        parent: tk.Widget,
         form_state: UploadFormState,
         task_state: UploadTaskState,
     ) -> None:
         self.form_state = form_state
         self.task_state = task_state
-        self.config_repo = ConfigRepository()
-        self.credentials_repo = CredentialRepository()
-        self.app_config = self.config_repo.load()
+        self.config_service = ConfigService()
+        self.auth_service = AuthService()
+        self.app_config = self.config_service.load_config()
 
         self.frame = ttk.Frame(parent, padding=16)
         self.frame.columnconfigure(0, weight=1)
@@ -52,6 +53,8 @@ class UploadTab:
         self.account_status_var = tk.StringVar(value=self._account_status_text())
         self._manual_login_window: tk.Toplevel | None = None
         self._manual_login_event: Event | None = None
+        self.share_button: ttk.Button | None = None
+        self._upload_succeeded = False  # 이번 세션에서 업로드 성공 여부
 
         self._build_form()
         self._bind_state()
@@ -137,12 +140,19 @@ class UploadTab:
         actions = ttk.Frame(self.frame)
         actions.grid(row=4, column=0, sticky="ew", pady=(12, 0))
 
+        self.share_button = ttk.Button(
+            actions,
+            text="갤러리에 공유",
+            command=self._start_gallery_share,
+        )
+        self.share_button.pack(side="right", padx=(0, 8))
+
         self.run_button = ttk.Button(
             actions,
             text="업로드 시작",
             command=self._start_upload,
         )
-        self.run_button.pack(anchor="e")
+        self.run_button.pack(side="right")
 
         status = ttk.LabelFrame(self.frame, text="작업 상태", padding=12)
         status.grid(row=5, column=0, sticky="ew", pady=(12, 0))
@@ -263,17 +273,11 @@ class UploadTab:
         password = self.password_var.get()
 
         if not email:
-            self.account_status_var.set("이메일을 입력해주세요.")
             return
 
-        if not password:
-            self.account_status_var.set("비밀번호를 입력해주세요.")
-            return
-
-        updated_config = replace(self.config_repo.load(), mattermost_email=email)
-        self.config_repo.save(updated_config)
-        self.app_config = updated_config
-        self.credentials_repo.set_password(email, password)
+        self.config_service.update_mattermost_email(email)
+        self.app_config = self.config_service.load_config()
+        self.auth_service.set_password(email, password)
         self.password_var.set("")
         self.account_status_var.set("계정이 저장되었습니다.")
 
@@ -286,6 +290,9 @@ class UploadTab:
         self.run_button.configure(
             state="disabled" if self.task_state.is_running else "normal"
         )
+        if self.share_button is not None:
+            share_enabled = self._upload_succeeded and not self.task_state.is_running
+            self.share_button.configure(state="normal" if share_enabled else "disabled")
 
     def _status_text(self) -> str:
         if self.task_state.is_running:
@@ -298,7 +305,7 @@ class UploadTab:
         return "대기 중"
 
     def _start_upload(self) -> None:
-        self.app_config = self.config_repo.load()
+        self.app_config = self.config_service.load_config()
         config = self._build_config()
         if config is None:
             return
@@ -332,7 +339,7 @@ class UploadTab:
                 self.refresh_task_state()
                 return None
 
-            if not self.credentials_repo.has_password(email):
+            if not self.auth_service.has_password(email):
                 self.task_state.error_message = "저장된 Mattermost 비밀번호가 없습니다."
                 self.refresh_task_state()
                 return None
@@ -354,7 +361,7 @@ class UploadTab:
         uploader = Uploader(
             config=config,
             app_config=self.app_config,
-            credentials=self.credentials_repo,
+            credentials=self.auth_service.repository,
             on_progress=self._handle_progress,
             wait_for_manual_login=(
                 self._wait_for_manual_login_confirmation
@@ -393,7 +400,24 @@ class UploadTab:
         self.task_state.failed = list(result.failed)
         self.task_state.message = ""
         self.task_state.error_message = ""
+
+        if result.success > 0:
+            self._upload_succeeded = True
+            self._mark_directory_uploaded(result.success_indices)
+
         self.refresh_task_state()
+
+    def _mark_directory_uploaded(self, indices: list[int]) -> None:
+        """업로드 성공 후 히스토리 엔트리에 성공한 조각 인덱스를 기록한다."""
+        directory = self.form_state.directory
+        if directory is None:
+            return
+        history_service = HistoryService()
+        try:
+            entry = history_service.resolve_from_directory(directory)
+            history_service.mark_uploaded_indices(entry, indices)
+        except Exception:  # noqa: BLE001
+            pass  # split 없이 직접 디렉토리를 지정한 경우 — 무시
 
     def _finish_upload_error(self, message: str) -> None:
         self._close_manual_login_window()
@@ -461,48 +485,119 @@ class UploadTab:
         if not email:
             return "저장된 계정이 없습니다."
 
-        if self.credentials_repo.has_password(email):
+        if self.auth_service.has_password(email):
             return f"저장된 계정: {email}"
 
         return f"이메일만 저장됨: {email}"
+
+    # ── 갤러리 공유 ────────────────────────────────────────
+
+    def _start_gallery_share(self) -> None:
+        import tkinter.simpledialog as simpledialog
+
+        author = simpledialog.askstring(
+            "갤러리 공유",
+            "작성자 이름을 입력하세요:",
+            initialvalue="Anonymous",
+            parent=self.frame.winfo_toplevel(),
+        )
+        if not author:
+            return
+
+        self._run_gallery_share(author=author)
+
+    def _run_gallery_share(self, *, author: str = "Anonymous") -> None:
+        if self.share_button is not None:
+            self.share_button.configure(state="disabled")
+
+        self.task_state.is_running = True
+        self.task_state.current = 0
+        self.task_state.total = 3
+        self.task_state.message = "갤러리에 공유 준비 중..."
+        self.task_state.error_message = ""
+        self.refresh_task_state()
+
+        Thread(
+            target=self._gallery_share_worker,
+            kwargs={"author": author},
+            daemon=True,
+        ).start()
+
+    def _gallery_share_worker(self, *, author: str = "Anonymous") -> None:
+        history_service = HistoryService()
+        directory = self.form_state.directory
+        try:
+            if directory:
+                entry = history_service.resolve_from_directory(directory)
+            else:
+                entry = history_service.get_latest()
+                if entry is None:
+                    raise HistoryNotFoundError("히스토리가 비어 있습니다.")
+        except Exception as exc:  # noqa: BLE001
+            self.frame.after(0, lambda e=str(exc): self._finish_share(e))
+            return
+
+        if not entry.uploaded:
+            msg = "먼저 Mattermost에 업로드한 후 공유해주세요."
+            self.frame.after(0, lambda m=msg: self._finish_share(m))
+            return
+
+        if entry.gallery_name:
+            msg = f"이미 갤러리에 공유된 이모지입니다. (갤러리 이름: {entry.gallery_name})"
+            self.frame.after(0, lambda m=msg: self._finish_share(m))
+            return
+
+        config = GalleryConfig(
+            gallery_repo=self.app_config.gallery_repo,
+            emoji_name=entry.emoji_name,
+            input_path=Path(entry.input_path),
+            output_dir=Path(entry.output_dir),
+            cols=entry.cols,
+            rows=entry.rows,
+            tile_size=entry.tile_size,
+            frame_step=entry.frame_step,
+            tile_count=entry.tile_count,
+            author=author,
+        )
+
+        try:
+            result = GalleryService(config, on_progress=self._handle_progress).run()
+        except GalleryAPIError as exc:
+            msg = str(exc)
+            self.frame.after(0, lambda m=msg: self._finish_share(m))
+            return
+
+        if result.success:
+            history_service.mark_shared(entry, result.emoji_name)
+            msg = f"공유 완료: {result.gallery_url}"
+            self.frame.after(0, lambda m=msg: self._finish_share(m, shared=True))
+        else:
+            msg = f"공유 실패: {result.error_message}"
+            self.frame.after(0, lambda m=msg: self._finish_share(m))
+
+    def _finish_share(self, message: str, *, shared: bool = False) -> None:
+        self.task_state.is_running = False
+        self.task_state.message = ""
+        self.task_state.error_message = message
+        if shared:
+            self._upload_succeeded = False  # 공유 완료 → 다시 share 불가
+        self.refresh_task_state()
+
+    # ── 유틸 ─────────────────────────────────────────────
 
     def _failed_indices_text(self) -> str:
         if not self.task_state.failed:
             return "-"
 
-        order_map = self._upload_order_map()
         indices: list[str] = []
         for path, _reason in self.task_state.failed:
             match = self.FAILED_INDEX_RE.search(path.stem)
-            order = order_map.get(path)
             if match:
-                token = match.group(1).lower()
+                indices.append(match.group(1).lower())
             else:
-                token = path.stem
-
-            if order is not None:
-                indices.append(f"{token} ({order}번)")
-            else:
-                indices.append(token)
+                indices.append(path.stem)
 
         return ", ".join(indices)
-
-    def _upload_order_map(self) -> dict[Path, int]:
-        directory = self.form_state.directory
-        if directory is None or not directory.exists():
-            return {}
-
-        try:
-            files = list_image_files(directory)
-        except Exception:  # noqa: BLE001
-            return {}
-
-        start = max(self.form_state.start_index - 1, 0)
-        files = files[start:]
-        if self.form_state.limit is not None:
-            files = files[: self.form_state.limit]
-
-        return {path: start + offset for offset, path in enumerate(files, start=1)}
 
     @staticmethod
     def _parse_int(value: str) -> int | None:
