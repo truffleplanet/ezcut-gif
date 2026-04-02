@@ -97,21 +97,37 @@ refactor/대상-설명
 chore/작업-설명
 ```
 
-### 커밋 메시지
+### 커밋 메시지 (Conventional Commits)
+
+본 프로젝트는 **Release Please**를 사용하여 자동으로 버전을 올리고 변경 로그를 작성합니다. 따라서 아래 컨벤션을 **반드시** 준수해야 합니다.
 
 ```text
-feat: 새 기능 추가
-fix: 버그 수정
-refactor: 코드 구조 변경
+feat: 새로운 기능 추가 (Minor 버전 업)
+fix: 버그 수정 (Patch 버전 업)
+docs: 문서 수정 (Patch 버전 업 가능)
 chore: 빌드, 설정 등 기타 변경
-docs: 문서 수정
+refactor: 코드 구조 변경
+perf: 성능 개선
 ```
+
+- **Minor 업**: `feat: ...`
+- **Patch 업**: `fix: ...`, `docs: ...` 등
+- **Major 업**: 메시지 바디에 `BREAKING CHANGE:`를 포함하거나 `feat!: ...` 처럼 느낌표를 추가하세요.
+
+## 버전 관리 및 릴리스
+
+1. **VCS 기반 버전 (`hatch-vcs`)**: 프로젝트 버전은 `pyproject.toml`에 고정되어 있지 않고 Git Tag를 기반으로 동적으로 결정됩니다. 로컬 개발 시에는 `uv run hatch version`으로 현재 버전을 확인할 수 있습니다.
+2. **자동 릴리스 프로세스**:
+   - `main` 브랜치에 머지된 커밋 메시지를 바탕으로 **Release Please**가 자동으로 릴리스 PR을 생성합니다.
+   - 해당 PR이 머지되면 자동으로 GitHub Release가 생성되고 Git Tag가 생성됩니다.
+   - 이 과정에서 별도의 버전 번호 수동 수정은 필요하지 않습니다.
 
 ## Pull Request
 
 1. `main` 브랜치에서 새 브랜치를 생성합니다.
 2. 작업 완료 후 PR을 올립니다 — [PR 템플릿](.github/PULL_REQUEST_TEMPLATE.md)을 따라주세요.
-3. CI 린트가 통과해야 머지 가능합니다.
+3. **중요**: PR의 제목이나 머지될 커밋 메시지가 위 컨벤션(`feat:`, `fix:` 등)을 따라야 버전에 정상 반영됩니다.
+4. CI 린트가 통과해야 머지 가능합니다.
 
 ## 이슈
 

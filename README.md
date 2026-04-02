@@ -62,7 +62,17 @@
 - `ezcut`: CLI 실행
 - `ezcut-gui`: GUI 실행
 
+### 버전 및 업데이트 관리
+
+설치 후 아래 명령어를 통해 버전을 확인하고 최신 상태로 유지할 수 있습니다.
+
+- `ezcut --version`: 현재 설치된 버전 확인
+- `ezcut update`: 최신 버전 확인 및 업데이트 방법 안내
+
 > [!TIP]
+> **GUI 알림**: `ezcut-gui` 실행 시 하단 상태바에 업데이트 알림이 표시됩니다. 클릭 시 업데이트 가이드를 볼 수 있습니다.
+
+> [!IMPORTANT]
 > 만약 `ezcut: command not found` 에러가 발생한다면, `uv tool update-shell` 실행 후 터미널을 완전히 종료했다가 다시 시작했는지 확인해 주세요.
 
 ### 기타 설치 방법 (Alternative Methods)
