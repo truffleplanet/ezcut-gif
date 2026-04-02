@@ -107,7 +107,7 @@ def _run_gallery_share(entry: HistoryEntry, history_service: HistoryService) -> 
     render_share_result(result)
 
 
-def offer_gallery_share() -> None:
+def offer_gallery_share(entry: HistoryEntry | None = None) -> None:
     """업로드 성공 후 갤러리 공유를 제안한다. upload 커맨드에서 호출."""
     try:
         share = ask_confirm("갤러리에 공유할까요?", default=False)
@@ -118,9 +118,11 @@ def offer_gallery_share() -> None:
         return
 
     history_service = HistoryService()
-    latest = history_service.get_latest()
-    if latest is None:
+    if entry is None:
+        entry = history_service.get_latest()
+
+    if entry is None:
         print_error("히스토리가 비어 있습니다.")
         return
 
-    _run_gallery_share(latest, history_service)
+    _run_gallery_share(entry, history_service)
