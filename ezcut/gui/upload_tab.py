@@ -320,6 +320,7 @@ class UploadTab:
             self.task_state.error_message = (
                 "브라우저에서 로그인한 뒤 계속 진행 버튼을 눌러주세요."
             )
+            self._show_manual_login_window()
         else:
             self.task_state.error_message = ""
         self.refresh_task_state()
