@@ -8,6 +8,7 @@ from ezcut.cli.prompts import (
     ask_directory,
     ask_float,
     ask_int,
+    prompt_history_selection,
     step_header,
 )
 from ezcut.cli.render import (
@@ -73,7 +74,15 @@ def upload_cmd(
     interactive = directory is None
 
     if interactive:
-        directory, limit, start_index, pause = _wizard()
+        history_service = HistoryService()
+        entries = history_service.list_history(limit=20)
+        if entries:
+            selected = prompt_history_selection(entries)
+            if selected:
+                directory = Path(selected.output_dir)
+
+        if directory is None:
+            directory, limit, start_index, pause = _wizard()
 
     assert directory is not None  # noqa: S101
 

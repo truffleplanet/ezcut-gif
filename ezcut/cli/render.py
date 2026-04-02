@@ -136,18 +136,25 @@ def render_history_table(entries: list[HistoryEntry]) -> None:
     table.add_column("Grid", style=VALUE)
     table.add_column("Step", style=VALUE, justify="right")
     table.add_column("Date", style=DIM)
+    table.add_column("Up", style=VALUE, justify="center")
+    table.add_column("Share", style=VALUE, justify="center")
     table.add_column("Output", style=DIM)
 
     for idx, entry in enumerate(entries, start=1):
         date_part = (
             entry.timestamp[:10] if len(entry.timestamp) >= 10 else entry.timestamp
         )
+        up_mark = "[green]✓[/]" if entry.uploaded else "[-]"
+        share_mark = "[green]✓[/]" if entry.gallery_name else "[-]"
+
         table.add_row(
             str(idx),
             entry.emoji_name,
             f"{entry.cols}x{entry.rows}",
             str(entry.frame_step),
             date_part,
+            up_mark,
+            share_mark,
             entry.output_dir,
         )
 
@@ -168,6 +175,13 @@ def render_history_latest(entry: HistoryEntry) -> None:
     table.add_row("Input", entry.input_path)
     table.add_row("Output", entry.output_dir)
     table.add_row("Date", entry.timestamp)
+    table.add_row("Uploaded", "[green]✓ Yes[/]" if entry.uploaded else f"[{DIM}]No[/]")
+    table.add_row(
+        "Shared",
+        f"[green]✓ Yes[/] ({entry.gallery_name})"
+        if entry.gallery_name
+        else f"[{DIM}]No[/]",
+    )
 
     panel = Panel(
         table, title="[bold cyan]Latest[/]", border_style=ACCENT, padding=(1, 1)

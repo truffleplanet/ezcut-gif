@@ -3,7 +3,7 @@ from typing import Annotated, Optional
 
 import typer
 
-from ezcut.cli.prompts import ask_confirm
+from ezcut.cli.prompts import ask_confirm, prompt_history_selection
 from ezcut.cli.render import (
     console,
     make_progress,
@@ -37,12 +37,20 @@ def share_cmd(
     try:
         if directory is not None and not last:
             entry = history_service.resolve_from_directory(directory)
-        else:
+        elif last:
             entry = history_service.get_latest()
             if entry is None:
                 raise HistoryNotFoundError(
                     "히스토리가 비어 있습니다. 먼저 split을 실행해주세요."
                 )
+        else:
+            entries = history_service.list_history(limit=20)
+            if not entries:
+                raise HistoryNotFoundError(
+                    "히스토리가 비어 있습니다. 먼저 split을 실행해주세요."
+                )
+            selected = prompt_history_selection(entries)
+            entry = selected
     except HistoryNotFoundError as exc:
         print_error(str(exc))
         raise typer.Exit(1) from exc

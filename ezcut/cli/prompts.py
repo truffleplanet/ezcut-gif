@@ -1,9 +1,13 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import questionary
 from questionary import Style
 
 from ezcut.cli.render import console
+
+if TYPE_CHECKING:
+    from ezcut.services.history import HistoryEntry
 
 # ── 미쿠 테마 스타일 ──────────────────────────────────────
 _STYLE = Style(
@@ -148,7 +152,7 @@ def ask_select(
         default=default_choice,
         qmark=_QMARK,
         style=_STYLE,
-        instruction="(↑↓ 선택, Enter 확인)",
+        instruction="(↑↓ 선택, Enter 확인, Ctrl+C 뒤로가기)",
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -233,3 +237,19 @@ def prompt_output_dir(default_name: str = "") -> Path:
 def prompt_emoji_name(default: str = "") -> str:
     """이모지 이름을 대화형으로 입력받는다."""
     return ask_text("이모지 이름", default=default, hint="Enter=파일명 사용")
+
+
+def prompt_history_selection(entries: list["HistoryEntry"]) -> "HistoryEntry | None":
+    """히스토리 목록에서 사용자가 조작하여 선택할 수 있도록 한다."""
+    if not entries:
+        return None
+
+    choices = []
+    for idx, entry in enumerate(entries, start=1):
+        up_mark = "✔" if entry.uploaded else " "
+        share_mark = "🔗" if entry.gallery_name else " "
+        desc = f"{idx:2d}. {entry.emoji_name} ({entry.cols}x{entry.rows}) [{up_mark}{share_mark}] | {entry.timestamp[:10]}"
+        choices.append((str(idx - 1), desc))
+
+    selected_idx_str = ask_select("히스토리에서 대상을 선택하세요", choices)
+    return entries[int(selected_idx_str)]
