@@ -246,7 +246,10 @@ class UploadTab:
         self.headless_var.trace_add("write", self._sync_form_state)
 
     def _sync_form_state(self, *_args) -> None:
+        previous_directory = self.form_state.directory
         self.form_state.directory = self._parse_path(self.directory_var.get())
+        if self.form_state.directory != previous_directory:
+            self._upload_succeeded = False
         self.form_state.base_url = self.base_url_var.get().strip()
         self.form_state.add_path = self.add_path_var.get().strip()
         self.form_state.pause = self._parse_float(self.pause_var.get()) or 0.3
@@ -291,7 +294,10 @@ class UploadTab:
             state="disabled" if self.task_state.is_running else "normal"
         )
         if self.share_button is not None:
-            share_enabled = self._upload_succeeded and not self.task_state.is_running
+            share_enabled = (
+                not self.task_state.is_running
+                and (self._upload_succeeded or self._has_shareable_history_entry())
+            )
             self.share_button.configure(state="normal" if share_enabled else "disabled")
 
     def _status_text(self) -> str:
@@ -490,6 +496,20 @@ class UploadTab:
             return f"저장된 계정: {email}"
 
         return f"이메일만 저장됨: {email}"
+
+    def _has_shareable_history_entry(self) -> bool:
+        """현재 선택된 디렉토리가 이미 업로드되었고 아직 공유되지 않았는지 확인한다."""
+        directory = self.form_state.directory
+        if directory is None:
+            return False
+
+        history_service = HistoryService()
+        try:
+            entry = history_service.resolve_from_directory(directory)
+        except Exception:  # noqa: BLE001
+            return False
+
+        return entry.uploaded and not entry.gallery_name
 
     # ── 갤러리 공유 ────────────────────────────────────────
 
