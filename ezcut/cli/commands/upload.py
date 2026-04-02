@@ -121,7 +121,7 @@ def upload_cmd(
     render_upload_result(result)
 
     if result.success > 0:
-        _mark_directory_uploaded(directory)
+        _mark_directory_uploaded(directory, result.success_indices)
 
         from .share import offer_gallery_share
 
@@ -129,14 +129,14 @@ def upload_cmd(
         offer_gallery_share()
 
 
-def _mark_directory_uploaded(directory: Path) -> None:
-    """업로드 성공 후 히스토리 엔트리에 uploaded 플래그를 기록한다."""
+def _mark_directory_uploaded(directory: Path, indices: list[int]) -> None:
+    """업로드 성공 후 히스토리 엔트리에 성공한 조각 인덱스를 기록한다."""
     from ezcut.services.exceptions import HistoryNotFoundError
 
     history_service = HistoryService()
     try:
         entry = history_service.resolve_from_directory(directory)
-        history_service.mark_uploaded(entry)
+        history_service.mark_uploaded_indices(entry, indices)
     except HistoryNotFoundError:
         pass  # split 없이 직접 디렉토리를 지정한 경우 — 무시
 

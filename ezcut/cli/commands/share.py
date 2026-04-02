@@ -50,6 +50,8 @@ def share_cmd(
                     "히스토리가 비어 있습니다. 먼저 split을 실행해주세요."
                 )
             selected = prompt_history_selection(entries)
+            if selected is None:
+                raise typer.Exit()
             entry = selected
     except HistoryNotFoundError as exc:
         print_error(str(exc))

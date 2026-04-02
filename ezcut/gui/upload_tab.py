@@ -403,19 +403,19 @@ class UploadTab:
 
         if result.success > 0:
             self._upload_succeeded = True
-            self._mark_directory_uploaded()
+            self._mark_directory_uploaded(result.success_indices)
 
         self.refresh_task_state()
 
-    def _mark_directory_uploaded(self) -> None:
-        """업로드 성공 후 히스토리 엔트리에 uploaded 플래그를 기록한다."""
+    def _mark_directory_uploaded(self, indices: list[int]) -> None:
+        """업로드 성공 후 히스토리 엔트리에 성공한 조각 인덱스를 기록한다."""
         directory = self.form_state.directory
         if directory is None:
             return
         history_service = HistoryService()
         try:
             entry = history_service.resolve_from_directory(directory)
-            history_service.mark_uploaded(entry)
+            history_service.mark_uploaded_indices(entry, indices)
         except Exception:  # noqa: BLE001
             pass  # split 없이 직접 디렉토리를 지정한 경우 — 무시
 

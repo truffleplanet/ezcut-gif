@@ -118,6 +118,8 @@ class UploadResult:
 
     success: int
     failed: list[tuple[Path, str]]
+    reached_end: bool
+    success_indices: list[int] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

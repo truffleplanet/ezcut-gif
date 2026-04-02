@@ -67,9 +67,9 @@ class HistoryService:
         """히스토리에 새 엔트리를 추가한다."""
         self.repository.add(entry)
 
-    def mark_uploaded(self, entry: HistoryEntry) -> None:
-        """엔트리를 Mattermost 업로드됨으로 표시한다."""
-        self.repository.mark_uploaded(entry)
+    def mark_uploaded_indices(self, entry: HistoryEntry, indices: list[int]) -> None:
+        """엔트리의 특정 조각들이 업로드되었음을 기록한다."""
+        self.repository.mark_uploaded_indices(entry, indices)
 
     def mark_shared(self, entry: HistoryEntry, gallery_name: str) -> None:
         """엔트리를 갤러리 공유됨으로 표시한다."""

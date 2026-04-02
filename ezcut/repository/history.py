@@ -1,5 +1,5 @@
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 HISTORY_DIR = Path.home() / ".config" / "ezcut"
@@ -22,8 +22,9 @@ class HistoryEntry:
     frame_step: int
     tile_count: int
 
-    # Mattermost 업로드 여부
+    # Mattermost 상세 업로드 정보 (성공한 조각 번호 리스트)
     uploaded: bool = False
+    uploaded_indices: list[int] = field(default_factory=list)
 
     # 갤러리 공유 정보 (공유 전 None)
     gallery_name: str | None = None
@@ -59,10 +60,14 @@ class HistoryRepository:
             raw_entries = json.load(file)
 
         known = {f.name for f in HistoryEntry.__dataclass_fields__.values()}
-        entries = [
-            HistoryEntry(**{k: v for k, v in item.items() if k in known})
-            for item in raw_entries
-        ]
+        entries = []
+        for item in raw_entries:
+            # 필드 마이그레이션 및 값 복원
+            data = {k: v for k, v in item.items() if k in known}
+            if "uploaded_indices" not in data:
+                data["uploaded_indices"] = []
+            entries.append(HistoryEntry(**data))
+
         if limit is None:
             return entries
         return entries[:limit]
@@ -74,13 +79,37 @@ class HistoryRepository:
         return entries[0]
 
     def mark_uploaded(self, entry: HistoryEntry) -> None:
-        """해당 엔트리를 Mattermost 업로드됨으로 표시한다."""
+        """해당 엔트리를 Mattermost 업로드됨으로 표시한다 (레거시/전체 완료 시)."""
         entries = self.list()
         for e in entries:
             if e.output_dir == entry.output_dir and e.timestamp == entry.timestamp:
                 e.uploaded = True
+                # 전체 완료된 것으로 간주되므로 인덱스도 모두 채움 (단, 실제 타일 수를 알 때만 가능)
+                if e.tile_count > 0:
+                    e.uploaded_indices = list(range(1, e.tile_count + 1))
                 break
 
+        self._save(entries)
+
+    def mark_uploaded_indices(self, entry: HistoryEntry, indices: list[int]) -> None:
+        """특정 조각들이 업로드되었음을 기록하고 전체 완료 여부를 판별한다."""
+        entries = self.list()
+        for e in entries:
+            if e.output_dir == entry.output_dir and e.timestamp == entry.timestamp:
+                # 중복 제거 및 합치기
+                current = set(e.uploaded_indices)
+                current.update(indices)
+                e.uploaded_indices = sorted(list(current))
+
+                # 전체 조각이 다 올라갔는지 판별
+                if len(e.uploaded_indices) >= e.tile_count:
+                    e.uploaded = True
+                break
+
+        self._save(entries)
+
+    def _save(self, entries: list[HistoryEntry]) -> None:
+        """히스토리 목록을 파일에 저장한다."""
         self.history_dir.mkdir(parents=True, exist_ok=True)
         payload = [asdict(item) for item in entries]
         self.history_file.write_text(
