@@ -246,6 +246,7 @@ class UploadTab:
         self.headless_var.trace_add("write", self._sync_form_state)
 
     def _sync_form_state(self, *_args) -> None:
+        """입력 위젯 값을 폼 상태에 반영하고 버튼 상태를 갱신한다."""
         previous_directory = self.form_state.directory
         self.form_state.directory = self._parse_path(self.directory_var.get())
         if self.form_state.directory != previous_directory:
@@ -269,6 +270,7 @@ class UploadTab:
             self.directory_var.set(path)
 
     def set_directory(self, path: Path) -> None:
+        """외부 탭에서 선택한 디렉토리를 업로드 입력값에 반영한다."""
         self.directory_var.set(str(path))
 
     def _save_credentials(self) -> None:
@@ -505,7 +507,12 @@ class UploadTab:
         history_service = HistoryService()
         try:
             entry = history_service.resolve_from_directory(directory)
-        except Exception:  # noqa: BLE001
+        except HistoryNotFoundError:
+            return False
+        except Exception as error:  # noqa: BLE001
+            self.task_state.error_message = (
+                f"히스토리 조회 중 오류가 발생했습니다: {error}"
+            )
             return False
 
         return entry.uploaded and not entry.gallery_name

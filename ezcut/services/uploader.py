@@ -4,7 +4,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver import ChromeOptions
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -210,9 +210,12 @@ class Uploader:
         if self._is_add_page_ready(driver):
             return
 
-        if self._try_open_add_page_from_list(driver, wait):
-            self._wait_until_add_page(driver, wait)
-            return
+        try:
+            if self._try_open_add_page_from_list(driver, wait):
+                self._wait_until_add_page(driver, wait)
+                return
+        except RuntimeError, WebDriverException:
+            pass
 
         driver.get(add_url)
         self._wait_until_add_page(driver, wait)
@@ -314,7 +317,11 @@ class Uploader:
         except TimeoutException:
             return False
 
-        add_button.click()
+        try:
+            add_button.click()
+        except WebDriverException:
+            return False
+
         return True
 
     def _is_add_page_ready(self, driver) -> bool:
