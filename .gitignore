@@ -12,3 +12,6 @@ build/
 *.txt
 
 !ezcut/cli/assets/*.txt
+
+# Generated version file
+ezcut/_version.py
