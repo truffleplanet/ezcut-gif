@@ -18,6 +18,10 @@ from ezcut.utils.emoji_txt import list_image_files
 from ezcut.utils.naming import normalize_emoji_name
 
 BROWSER_VIEW_XPATH = "//a[normalize-space()='브라우저에서 보기']"
+EMOJI_ADD_BUTTON_XPATH = (
+    "//button[normalize-space()='이모티콘 추가']"
+    " | //a[normalize-space()='이모티콘 추가']"
+)
 LOGIN_EMAIL_SELECTOR = "input#input_loginId"
 LOGIN_PASSWORD_SELECTOR = "input#input_password-input"
 LOGIN_SUBMIT_SELECTOR = "button#saveSetting"
@@ -203,17 +207,15 @@ class Uploader:
 
     def _open_add_page(self, driver, wait, add_url: str) -> None:
         """이모지 업로드 페이지를 연다."""
+        if self._is_add_page_ready(driver):
+            return
+
+        if self._try_open_add_page_from_list(driver, wait):
+            self._wait_until_add_page(driver, wait)
+            return
+
         driver.get(add_url)
-        wait.until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, self.config.page.name_input_selector)
-            )
-        )
-        wait.until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, self.config.page.file_input_selector)
-            )
-        )
+        self._wait_until_add_page(driver, wait)
 
     def _upload_one(
         self, driver, wait, add_url: str, image_path, emoji_name: str
@@ -298,6 +300,22 @@ class Uploader:
             wait.until(lambda current_driver: self._is_add_page_ready(current_driver))
         except TimeoutException as error:
             raise RuntimeError("이모지 업로드 페이지로 진입하지 못했습니다.") from error
+
+    def _try_open_add_page_from_list(self, driver, wait) -> bool:
+        """이모지 목록 화면에서 추가 버튼으로 업로드 폼 진입을 시도한다."""
+        add_buttons = driver.find_elements(By.XPATH, EMOJI_ADD_BUTTON_XPATH)
+        if not add_buttons:
+            return False
+
+        try:
+            add_button = wait.until(
+                EC.element_to_be_clickable((By.XPATH, EMOJI_ADD_BUTTON_XPATH))
+            )
+        except TimeoutException:
+            return False
+
+        add_button.click()
+        return True
 
     def _is_add_page_ready(self, driver) -> bool:
         """이모지 업로드 폼이 준비됐는지 확인한다."""
