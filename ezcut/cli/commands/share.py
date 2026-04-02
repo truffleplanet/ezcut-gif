@@ -3,7 +3,11 @@ from typing import Annotated, Optional
 
 import typer
 
-from ezcut.cli.prompts import ask_confirm, prompt_history_selection
+from ezcut.cli.prompts import (
+    ask_confirm,
+    prompt_author_name,
+    prompt_history_selection,
+)
 from ezcut.cli.render import (
     console,
     make_progress,
@@ -30,6 +34,10 @@ def share_cmd(
         bool,
         typer.Option("--last", help="가장 최근 split 결과를 공유"),
     ] = False,
+    author: Annotated[
+        Optional[str],
+        typer.Option("--author", help="갤러리 작성자 이름"),
+    ] = None,
 ) -> None:
     """갤러리에 이모지 세트를 공유한다."""
     history_service = HistoryService()
@@ -57,10 +65,19 @@ def share_cmd(
         print_error(str(exc))
         raise typer.Exit(1) from exc
 
-    _run_gallery_share(entry, history_service)
+    _run_gallery_share(
+        entry,
+        history_service,
+        author=_resolve_share_author(author),
+    )
 
 
-def _run_gallery_share(entry: HistoryEntry, history_service: HistoryService) -> None:
+def _run_gallery_share(
+    entry: HistoryEntry,
+    history_service: HistoryService,
+    *,
+    author: str = "Anonymous",
+) -> None:
     """갤러리 공유를 실행한다."""
     if not entry.uploaded:
         print_error(
@@ -86,6 +103,7 @@ def _run_gallery_share(entry: HistoryEntry, history_service: HistoryService) -> 
         tile_size=entry.tile_size,
         frame_step=entry.frame_step,
         tile_count=entry.tile_count,
+        author=author,
     )
 
     with make_progress() as progress:
@@ -107,7 +125,11 @@ def _run_gallery_share(entry: HistoryEntry, history_service: HistoryService) -> 
     render_share_result(result)
 
 
-def offer_gallery_share(entry: HistoryEntry | None = None) -> None:
+def offer_gallery_share(
+    entry: HistoryEntry | None = None,
+    *,
+    author: str | None = None,
+) -> None:
     """업로드 성공 후 갤러리 공유를 제안한다. upload 커맨드에서 호출."""
     try:
         share = ask_confirm("갤러리에 공유할까요?", default=False)
@@ -118,11 +140,36 @@ def offer_gallery_share(entry: HistoryEntry | None = None) -> None:
         return
 
     history_service = HistoryService()
-    if entry is None:
-        entry = history_service.get_latest()
+    entry = _refresh_entry(entry, history_service)
 
     if entry is None:
         print_error("히스토리가 비어 있습니다.")
         return
 
-    _run_gallery_share(entry, history_service)
+    try:
+        author_name = _resolve_share_author(author)
+    except KeyboardInterrupt:
+        return
+
+    _run_gallery_share(entry, history_service, author=author_name)
+
+
+def _refresh_entry(
+    entry: HistoryEntry | None,
+    history_service: HistoryService,
+) -> HistoryEntry | None:
+    """공유 직전 최신 히스토리 엔트리를 다시 읽는다."""
+    if entry is None:
+        return history_service.get_latest()
+
+    try:
+        return history_service.resolve_from_directory(Path(entry.output_dir))
+    except HistoryNotFoundError:
+        return entry
+
+
+def _resolve_share_author(author: str | None) -> str:
+    """CLI 공유 작성자 이름을 결정한다."""
+    if author is not None and author.strip():
+        return author.strip()
+    return prompt_author_name()

@@ -2,7 +2,7 @@ import re
 import tkinter as tk
 from pathlib import Path
 from threading import Event, Thread
-from tkinter import filedialog, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from ezcut.services.auth import AuthService
 from ezcut.services.config import ConfigService
@@ -320,6 +320,7 @@ class UploadTab:
             self.task_state.error_message = (
                 "브라우저에서 로그인한 뒤 계속 진행 버튼을 눌러주세요."
             )
+            self._show_manual_login_window()
         else:
             self.task_state.error_message = ""
         self.refresh_task_state()
@@ -582,6 +583,12 @@ class UploadTab:
         if shared:
             self._upload_succeeded = False  # 공유 완료 → 다시 share 불가
         self.refresh_task_state()
+        if shared:
+            messagebox.showinfo(
+                "갤러리 공유 완료",
+                message,
+                parent=self.frame.winfo_toplevel(),
+            )
 
     # ── 유틸 ─────────────────────────────────────────────
 

@@ -239,6 +239,12 @@ def prompt_emoji_name(default: str = "") -> str:
     return ask_text("이모지 이름", default=default, hint="Enter=파일명 사용")
 
 
+def prompt_author_name(default: str = "Anonymous") -> str:
+    """갤러리 공유 시 작성자 이름을 대화형으로 입력받는다."""
+    author = ask_text("작성자 이름", default=default, hint="Enter=Anonymous").strip()
+    return author or default
+
+
 def prompt_history_selection(entries: list["HistoryEntry"]) -> "HistoryEntry | None":
     """히스토리 목록에서 사용자가 조작하여 선택할 수 있도록 한다."""
     if not entries:
