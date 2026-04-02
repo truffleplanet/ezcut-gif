@@ -1,11 +1,12 @@
 import tkinter as tk
 from pathlib import Path
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from ezcut.gui.history_tab import HistoryTab
 from ezcut.gui.preview_tab import PreviewTab
 from ezcut.gui.split_tab import SplitTab
 from ezcut.gui.upload_tab import UploadTab
+from ezcut.services.version import VersionService
 from ezcut.store.state import (
     PreviewTaskState,
     SplitFormState,
@@ -57,7 +58,26 @@ class EzcutApp:
         self.notebook.add(self.upload_tab.frame, text="Upload")
         self.notebook.add(self.history_tab.frame, text="History")
 
+        # ── 하단 상태바 (버전 및 업데이트) ──────────────────────
+        self.status_bar = ttk.Frame(self.root)
+        self.status_bar.pack(side="bottom", fill="x", padx=5, pady=2)
+
+        self.version_service = VersionService()
+        current_v = self.version_service.get_current_version()
+
+        self.v_label = ttk.Label(
+            self.status_bar, text=f"v{current_v}", foreground="gray"
+        )
+        self.v_label.pack(side="left")
+
+        self.update_label = ttk.Label(self.status_bar, text="", cursor="hand2")
+        self.update_label.pack(side="right")
+        self.update_label.bind("<Button-1>", lambda e: self._show_update_guide())
+
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
+        # 시작 시 업데이트 체크
+        self._check_for_updates()
 
     def _on_tab_changed(self, event) -> None:
         # 탭을 전환할 때 히스토리 탭인 경우 목록을 새로고침
@@ -82,3 +102,22 @@ class EzcutApp:
 
         # 불러오기 완료 시 업로드 탭 갱신 트리거 및 이동 피드백
         self.notebook.select(self.upload_tab.frame)
+
+    def _check_for_updates(self) -> None:
+        """실시간으로 업데이트를 체크하여 UI에 반영합니다."""
+        is_available, latest = self.version_service.check_update()
+        if is_available and latest:
+            self.update_label.config(
+                text=f"🚀 New version available: v{latest}",
+                foreground="#007acc",  # 링크 느낌의 색상
+            )
+
+    def _show_update_guide(self) -> None:
+        """업데이트 가이드 팝업을 표시합니다."""
+        guide = (
+            "설치 환경에 맞는 명령어를 터미널에서 실행하세요:\n\n"
+            "1. uv (권장):\n   uv tool upgrade ezcut\n\n"
+            "2. pipx:\n   pipx upgrade ezcut\n\n"
+            "3. pip:\n   pip install --upgrade git+https://github.com/S-P-A-N/ezcut-gif.git"
+        )
+        messagebox.showinfo("Update Guide", guide)

@@ -45,16 +45,25 @@ def _load_asset(name: str) -> str:
 # ── 배너 ──────────────────────────────────────────────────
 
 
-def render_banner() -> None:
-    """미쿠 ASCII art + 타이틀을 출력한다."""
+def render_banner(version: str, latest_version: str | None = None) -> None:
+    """미쿠 ASCII art + 타이틀 및 버전 정보를 출력한다."""
     art = _load_asset("miku.txt")
     if art:
         console.print(Text(art, style=ACCENT))
     console.print()
-    console.print(
-        Text("  ezcut", style="bold cyan")
-        + Text(" \u2014 GIF grid splitter & Mattermost uploader", style=DIM),
-    )
+
+    title = Text("  ezcut", style="bold cyan")
+    v_info = Text(f" v{version}", style=DIM)
+    desc = Text(" \u2014 GIF grid splitter & Mattermost uploader", style=DIM)
+
+    console.print(title + v_info + desc)
+
+    if latest_version and version != latest_version:
+        console.print()
+        console.print(
+            f"  [bold yellow]🚀 New version available:[/] [bold cyan]v{latest_version}[/] "
+            f"[dim](Run 'ezcut update' for instructions)[/]"
+        )
     console.print()
 
 
