@@ -294,9 +294,8 @@ class UploadTab:
             state="disabled" if self.task_state.is_running else "normal"
         )
         if self.share_button is not None:
-            share_enabled = (
-                not self.task_state.is_running
-                and (self._upload_succeeded or self._has_shareable_history_entry())
+            share_enabled = not self.task_state.is_running and (
+                self._upload_succeeded or self._has_shareable_history_entry()
             )
             self.share_button.configure(state="normal" if share_enabled else "disabled")
 
