@@ -79,6 +79,10 @@ class UploadTab:
         self._manual_login_event: Event | None = None
         self.share_button: ttk.Button | None = None
         self.progress_bar: ttk.Progressbar | None = None
+        self.status_frame: ttk.LabelFrame | None = None
+        self.error_label: ttk.Label | None = None
+        self.failed_indices_label: ttk.Label | None = None
+        self.progress_message_label: ttk.Label | None = None
         self._upload_succeeded = False  # 이번 세션에서 업로드 성공 여부
 
         self._build_form()
@@ -179,34 +183,39 @@ class UploadTab:
         )
         self.run_button.pack(side="right")
 
-        status = ttk.LabelFrame(self.content, text="작업 상태", padding=12)
-        status.grid(row=5, column=0, sticky="ew", pady=(12, 0))
-        status.columnconfigure(1, weight=1)
+        self.status_frame = ttk.LabelFrame(self.content, text="작업 상태", padding=12)
+        self.status_frame.grid(row=5, column=0, sticky="ew", pady=(12, 0))
+        self.status_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(status, text="상태").grid(row=0, column=0, sticky="nw", padx=(0, 8))
-        ttk.Label(status, textvariable=self.status_var).grid(
+        ttk.Label(self.status_frame, text="상태").grid(
+            row=0, column=0, sticky="nw", padx=(0, 8)
+        )
+        ttk.Label(self.status_frame, textvariable=self.status_var).grid(
             row=0, column=1, sticky="w"
         )
-        ttk.Label(status, text="오류").grid(
+        ttk.Label(self.status_frame, text="오류").grid(
             row=1, column=0, sticky="nw", padx=(0, 8), pady=(8, 0)
         )
-        ttk.Label(status, textvariable=self.error_var).grid(
-            row=1, column=1, sticky="w", pady=(8, 0)
+        self.error_label = ttk.Label(
+            self.status_frame,
+            textvariable=self.error_var,
+            justify="left",
         )
-        ttk.Label(status, text="실패 인덱스").grid(
+        self.error_label.grid(row=1, column=1, sticky="w", pady=(8, 0))
+        ttk.Label(self.status_frame, text="실패 인덱스").grid(
             row=2, column=0, sticky="nw", padx=(0, 8), pady=(8, 0)
         )
-        ttk.Label(
-            status,
+        self.failed_indices_label = ttk.Label(
+            self.status_frame,
             textvariable=self.failed_indices_var,
-            wraplength=520,
             justify="left",
-        ).grid(row=2, column=1, sticky="w", pady=(8, 0))
+        )
+        self.failed_indices_label.grid(row=2, column=1, sticky="w", pady=(8, 0))
 
-        ttk.Label(status, text="진행률").grid(
+        ttk.Label(self.status_frame, text="진행률").grid(
             row=3, column=0, sticky="nw", padx=(0, 8), pady=(8, 0)
         )
-        progress_frame = ttk.Frame(status)
+        progress_frame = ttk.Frame(self.status_frame)
         progress_frame.grid(row=3, column=1, sticky="ew", pady=(8, 0))
         progress_frame.columnconfigure(0, weight=1)
 
@@ -218,12 +227,12 @@ class UploadTab:
         )
         self.progress_bar.grid(row=0, column=0, sticky="ew")
 
-        ttk.Label(
+        self.progress_message_label = ttk.Label(
             progress_frame,
             textvariable=self.progress_message_var,
-            wraplength=520,
             justify="left",
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
+        )
+        self.progress_message_label.grid(row=1, column=0, sticky="w", pady=(6, 0))
 
     def _add_entry_row(
         self,
@@ -722,7 +731,14 @@ class UploadTab:
     def _focus_status_section(self) -> None:
         """상태 영역이 보이도록 스크롤을 아래쪽으로 이동한다."""
         self.canvas.update_idletasks()
-        self.canvas.yview_moveto(1.0)
+        if self.status_frame is None:
+            self.canvas.yview_moveto(1.0)
+            return
+
+        content_height = max(self.content.winfo_height(), 1)
+        status_y = self.status_frame.winfo_y()
+        target = min(max(status_y / content_height, 0.0), 1.0)
+        self.canvas.yview_moveto(target)
 
     def _on_content_configure(self, _event) -> None:
         """내부 프레임 크기가 바뀌면 스크롤 영역을 갱신한다."""
@@ -731,6 +747,13 @@ class UploadTab:
     def _on_canvas_configure(self, event) -> None:
         """캔버스 너비에 맞춰 내부 프레임 너비를 동기화한다."""
         self.canvas.itemconfigure(self._content_window, width=event.width)
+        wraplength = max(event.width - 240, 260)
+        if self.error_label is not None:
+            self.error_label.configure(wraplength=wraplength)
+        if self.failed_indices_label is not None:
+            self.failed_indices_label.configure(wraplength=wraplength)
+        if self.progress_message_label is not None:
+            self.progress_message_label.configure(wraplength=wraplength)
 
     def _bind_mousewheel(self, _event) -> None:
         """포인터가 업로드 탭 위에 있을 때 마우스휠 스크롤을 활성화한다."""
