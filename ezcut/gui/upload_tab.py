@@ -30,8 +30,30 @@ class UploadTab:
         self.auth_service = AuthService()
         self.app_config = self.config_service.load_config()
 
-        self.frame = ttk.Frame(parent, padding=16)
+        self.frame = ttk.Frame(parent)
         self.frame.columnconfigure(0, weight=1)
+        self.frame.rowconfigure(0, weight=1)
+
+        self.canvas = tk.Canvas(self.frame, highlightthickness=0)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+
+        self.scrollbar = ttk.Scrollbar(
+            self.frame, orient="vertical", command=self.canvas.yview
+        )
+        self.scrollbar.grid(row=0, column=1, sticky="ns")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.content = ttk.Frame(self.canvas, padding=16)
+        self._content_window = self.canvas.create_window(
+            (0, 0),
+            window=self.content,
+            anchor="nw",
+        )
+        self.content.columnconfigure(0, weight=1)
+        self.content.bind("<Configure>", self._on_content_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.canvas.bind("<Enter>", self._bind_mousewheel)
+        self.canvas.bind("<Leave>", self._unbind_mousewheel)
 
         self.directory_var = tk.StringVar(
             value=self._path_text(self.form_state.directory)
@@ -50,10 +72,17 @@ class UploadTab:
         self.status_var = tk.StringVar(value=self._status_text())
         self.error_var = tk.StringVar(value=self.task_state.error_message or "-")
         self.failed_indices_var = tk.StringVar(value="-")
+        self.progress_message_var = tk.StringVar(value="-")
+        self.progress_value_var = tk.DoubleVar(value=0.0)
         self.account_status_var = tk.StringVar(value=self._account_status_text())
         self._manual_login_window: tk.Toplevel | None = None
         self._manual_login_event: Event | None = None
         self.share_button: ttk.Button | None = None
+        self.progress_bar: ttk.Progressbar | None = None
+        self.status_frame: ttk.LabelFrame | None = None
+        self.error_label: ttk.Label | None = None
+        self.failed_indices_label: ttk.Label | None = None
+        self.progress_message_label: ttk.Label | None = None
         self._upload_succeeded = False  # 이번 세션에서 업로드 성공 여부
 
         self._build_form()
@@ -61,17 +90,17 @@ class UploadTab:
         self.refresh_task_state()
 
     def _build_form(self) -> None:
-        ttk.Label(self.frame, text="Upload", style="Title.TLabel").grid(
+        ttk.Label(self.content, text="Upload", style="Title.TLabel").grid(
             row=0,
             column=0,
             sticky="w",
         )
         ttk.Label(
-            self.frame,
+            self.content,
             text="업로드 입력값과 진행 상태를 관리합니다.",
         ).grid(row=1, column=0, sticky="w", pady=(4, 12))
 
-        form = ttk.LabelFrame(self.frame, text="입력값", padding=12)
+        form = ttk.LabelFrame(self.content, text="입력값", padding=12)
         form.grid(row=2, column=0, sticky="ew")
         form.columnconfigure(1, weight=1)
 
@@ -110,7 +139,7 @@ class UploadTab:
             variable=self.headless_var,
         ).grid(row=8, column=1, sticky="w", pady=(4, 0))
 
-        account = ttk.LabelFrame(self.frame, text="Mattermost 계정", padding=12)
+        account = ttk.LabelFrame(self.content, text="Mattermost 계정", padding=12)
         account.grid(row=3, column=0, sticky="ew", pady=(12, 0))
         account.columnconfigure(1, weight=1)
 
@@ -137,7 +166,7 @@ class UploadTab:
             textvariable=self.account_status_var,
         ).grid(row=3, column=1, sticky="w", pady=(8, 0))
 
-        actions = ttk.Frame(self.frame)
+        actions = ttk.Frame(self.content)
         actions.grid(row=4, column=0, sticky="ew", pady=(12, 0))
 
         self.share_button = ttk.Button(
@@ -154,29 +183,56 @@ class UploadTab:
         )
         self.run_button.pack(side="right")
 
-        status = ttk.LabelFrame(self.frame, text="작업 상태", padding=12)
-        status.grid(row=5, column=0, sticky="ew", pady=(12, 0))
-        status.columnconfigure(1, weight=1)
+        self.status_frame = ttk.LabelFrame(self.content, text="작업 상태", padding=12)
+        self.status_frame.grid(row=5, column=0, sticky="ew", pady=(12, 0))
+        self.status_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(status, text="상태").grid(row=0, column=0, sticky="nw", padx=(0, 8))
-        ttk.Label(status, textvariable=self.status_var).grid(
+        ttk.Label(self.status_frame, text="상태").grid(
+            row=0, column=0, sticky="nw", padx=(0, 8)
+        )
+        ttk.Label(self.status_frame, textvariable=self.status_var).grid(
             row=0, column=1, sticky="w"
         )
-        ttk.Label(status, text="오류").grid(
+        ttk.Label(self.status_frame, text="오류").grid(
             row=1, column=0, sticky="nw", padx=(0, 8), pady=(8, 0)
         )
-        ttk.Label(status, textvariable=self.error_var).grid(
-            row=1, column=1, sticky="w", pady=(8, 0)
+        self.error_label = ttk.Label(
+            self.status_frame,
+            textvariable=self.error_var,
+            justify="left",
         )
-        ttk.Label(status, text="실패 인덱스").grid(
+        self.error_label.grid(row=1, column=1, sticky="w", pady=(8, 0))
+        ttk.Label(self.status_frame, text="실패 인덱스").grid(
             row=2, column=0, sticky="nw", padx=(0, 8), pady=(8, 0)
         )
-        ttk.Label(
-            status,
+        self.failed_indices_label = ttk.Label(
+            self.status_frame,
             textvariable=self.failed_indices_var,
-            wraplength=520,
             justify="left",
-        ).grid(row=2, column=1, sticky="w", pady=(8, 0))
+        )
+        self.failed_indices_label.grid(row=2, column=1, sticky="w", pady=(8, 0))
+
+        ttk.Label(self.status_frame, text="진행률").grid(
+            row=3, column=0, sticky="nw", padx=(0, 8), pady=(8, 0)
+        )
+        progress_frame = ttk.Frame(self.status_frame)
+        progress_frame.grid(row=3, column=1, sticky="ew", pady=(8, 0))
+        progress_frame.columnconfigure(0, weight=1)
+
+        self.progress_bar = ttk.Progressbar(
+            progress_frame,
+            variable=self.progress_value_var,
+            maximum=100,
+            mode="determinate",
+        )
+        self.progress_bar.grid(row=0, column=0, sticky="ew")
+
+        self.progress_message_label = ttk.Label(
+            progress_frame,
+            textvariable=self.progress_message_var,
+            justify="left",
+        )
+        self.progress_message_label.grid(row=1, column=0, sticky="w", pady=(6, 0))
 
     def _add_entry_row(
         self,
@@ -291,6 +347,8 @@ class UploadTab:
         self.status_var.set(self._status_text())
         self.error_var.set(self.task_state.error_message or "-")
         self.failed_indices_var.set(self._failed_indices_text())
+        self.progress_message_var.set(self._progress_message_text())
+        self.progress_value_var.set(self._progress_percent())
         self.account_status_var.set(self._account_status_text())
         self.run_button.configure(
             state="disabled" if self.task_state.is_running else "normal"
@@ -331,6 +389,7 @@ class UploadTab:
         else:
             self.task_state.error_message = ""
         self.refresh_task_state()
+        self._focus_status_section()
 
         Thread(target=self._run_upload, args=(config,), daemon=True).start()
 
@@ -400,6 +459,7 @@ class UploadTab:
         self.task_state.total = total
         self.task_state.message = message
         self.refresh_task_state()
+        self._focus_status_section()
 
     def _finish_upload_success(self, result) -> None:
         self._close_manual_login_window()
@@ -414,6 +474,7 @@ class UploadTab:
             self._mark_directory_uploaded(result.success_indices)
 
         self.refresh_task_state()
+        self._prompt_share_after_upload()
 
     def _mark_directory_uploaded(self, indices: list[int]) -> None:
         """업로드 성공 후 히스토리 엔트리에 성공한 조각 인덱스를 기록한다."""
@@ -433,6 +494,7 @@ class UploadTab:
         self.task_state.message = ""
         self.task_state.error_message = message
         self.refresh_task_state()
+        self._focus_status_section()
 
     def _wait_for_manual_login_confirmation(self) -> None:
         if self._manual_login_event is None:
@@ -543,6 +605,7 @@ class UploadTab:
         self.task_state.message = "갤러리에 공유 준비 중..."
         self.task_state.error_message = ""
         self.refresh_task_state()
+        self._focus_status_section()
 
         Thread(
             target=self._gallery_share_worker,
@@ -609,6 +672,7 @@ class UploadTab:
         if shared:
             self._upload_succeeded = False  # 공유 완료 → 다시 share 불가
         self.refresh_task_state()
+        self._focus_status_section()
         if shared:
             messagebox.showinfo(
                 "갤러리 공유 완료",
@@ -631,6 +695,77 @@ class UploadTab:
                 indices.append(path.stem)
 
         return ", ".join(indices)
+
+    def _progress_message_text(self) -> str:
+        """진행 상태 보조 문구를 반환한다."""
+        if self.task_state.is_running:
+            if self.task_state.total > 0:
+                return (
+                    f"{self.task_state.current}/{self.task_state.total} "
+                    f"{self.task_state.message}".strip()
+                )
+            return self.task_state.message or "작업 준비 중..."
+        if self.task_state.success or self.task_state.failed:
+            return "작업이 완료되었습니다."
+        return "작업을 시작하면 진행 상태가 여기에 표시됩니다."
+
+    def _progress_percent(self) -> float:
+        """현재 진행률을 0~100 범위 백분율로 반환한다."""
+        if self.task_state.total <= 0:
+            return 0.0
+        return min(100.0, (self.task_state.current / self.task_state.total) * 100)
+
+    def _prompt_share_after_upload(self) -> None:
+        """업로드 완료 후 공유 여부를 묻고 원하면 바로 공유를 시작한다."""
+        if not self._has_shareable_history_entry():
+            return
+
+        should_share = messagebox.askyesno(
+            "갤러리 공유",
+            "업로드가 완료되었습니다.\n바로 갤러리에 공유할까요?",
+            parent=self.frame.winfo_toplevel(),
+        )
+        if should_share:
+            self._start_gallery_share()
+
+    def _focus_status_section(self) -> None:
+        """상태 영역이 보이도록 스크롤을 아래쪽으로 이동한다."""
+        self.canvas.update_idletasks()
+        if self.status_frame is None:
+            self.canvas.yview_moveto(1.0)
+            return
+
+        content_height = max(self.content.winfo_height(), 1)
+        status_y = self.status_frame.winfo_y()
+        target = min(max(status_y / content_height, 0.0), 1.0)
+        self.canvas.yview_moveto(target)
+
+    def _on_content_configure(self, _event) -> None:
+        """내부 프레임 크기가 바뀌면 스크롤 영역을 갱신한다."""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event) -> None:
+        """캔버스 너비에 맞춰 내부 프레임 너비를 동기화한다."""
+        self.canvas.itemconfigure(self._content_window, width=event.width)
+        wraplength = max(event.width - 240, 260)
+        if self.error_label is not None:
+            self.error_label.configure(wraplength=wraplength)
+        if self.failed_indices_label is not None:
+            self.failed_indices_label.configure(wraplength=wraplength)
+        if self.progress_message_label is not None:
+            self.progress_message_label.configure(wraplength=wraplength)
+
+    def _bind_mousewheel(self, _event) -> None:
+        """포인터가 업로드 탭 위에 있을 때 마우스휠 스크롤을 활성화한다."""
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+    def _unbind_mousewheel(self, _event) -> None:
+        """포인터가 업로드 탭을 벗어나면 마우스휠 스크롤을 해제한다."""
+        self.canvas.unbind_all("<MouseWheel>")
+
+    def _on_mousewheel(self, event) -> None:
+        """마우스휠 입력으로 세로 스크롤한다."""
+        self.canvas.yview_scroll(int(-event.delta / 120), "units")
 
     @staticmethod
     def _parse_int(value: str) -> int | None:

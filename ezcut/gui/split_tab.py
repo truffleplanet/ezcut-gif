@@ -25,8 +25,30 @@ class SplitTab:
         self.task_state = task_state
         self.on_split_complete = on_split_complete
 
-        self.frame = ttk.Frame(parent, padding=16)
+        self.frame = ttk.Frame(parent)
         self.frame.columnconfigure(0, weight=1)
+        self.frame.rowconfigure(0, weight=1)
+
+        self.canvas = tk.Canvas(self.frame, highlightthickness=0)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+
+        self.scrollbar = ttk.Scrollbar(
+            self.frame, orient="vertical", command=self.canvas.yview
+        )
+        self.scrollbar.grid(row=0, column=1, sticky="ns")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.content = ttk.Frame(self.canvas, padding=16)
+        self._content_window = self.canvas.create_window(
+            (0, 0),
+            window=self.content,
+            anchor="nw",
+        )
+        self.content.columnconfigure(0, weight=1)
+        self.content.bind("<Configure>", self._on_content_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.canvas.bind("<Enter>", self._bind_mousewheel)
+        self.canvas.bind("<Leave>", self._unbind_mousewheel)
 
         self.input_path_var = tk.StringVar(
             value=self._path_text(self.form_state.input_path)
@@ -66,17 +88,17 @@ class SplitTab:
         self.refresh_task_state()
 
     def _build_form(self) -> None:
-        ttk.Label(self.frame, text="Split", style="Title.TLabel").grid(
+        ttk.Label(self.content, text="Split", style="Title.TLabel").grid(
             row=0,
             column=0,
             sticky="w",
         )
         ttk.Label(
-            self.frame,
+            self.content,
             text="GIF를 여러 조각으로 나누기 위한 설정을 선택합니다.",
         ).grid(row=1, column=0, sticky="w", pady=(4, 12))
 
-        form = ttk.LabelFrame(self.frame, text="입력값", padding=12)
+        form = ttk.LabelFrame(self.content, text="입력값", padding=12)
         form.grid(row=2, column=0, sticky="ew")
         form.columnconfigure(1, weight=1)
 
@@ -118,7 +140,7 @@ class SplitTab:
             width=10,
         )
 
-        recommendation = ttk.LabelFrame(self.frame, text="자동 추천 분할", padding=12)
+        recommendation = ttk.LabelFrame(self.content, text="자동 추천 분할", padding=12)
         recommendation.grid(row=3, column=0, sticky="ew", pady=(12, 0))
         recommendation.columnconfigure(1, weight=1)
 
@@ -190,7 +212,7 @@ class SplitTab:
             pady=4,
         )
 
-        actions = ttk.Frame(self.frame)
+        actions = ttk.Frame(self.content)
         actions.grid(row=4, column=0, sticky="ew", pady=(12, 0))
 
         self.run_button = ttk.Button(
@@ -201,11 +223,11 @@ class SplitTab:
         self.run_button.pack(anchor="e")
 
         ttk.Label(
-            self.frame,
+            self.content,
             text="조각 이미지 크기(px)는 결과 GIF 한 조각의 가로/세로 크기입니다. 예: 128 = 128x128",
         ).grid(row=5, column=0, sticky="w", pady=(12, 0))
         ttk.Label(
-            self.frame,
+            self.content,
             text="재생 속도는 결과 GIF의 전체 실행 시간을 압축합니다. 예: 1.5x = 약 2/3 시간",
         ).grid(row=6, column=0, sticky="w", pady=(4, 0))
 
@@ -510,6 +532,26 @@ class SplitTab:
         self._progress_window = top
         self._progress_label_var.set("분할 작업 시작")
         self._progress_detail_var.set("작업 상태를 여기서 확인할 수 있습니다.")
+
+    def _on_content_configure(self, _event) -> None:
+        """내부 프레임 크기가 바뀌면 스크롤 영역을 갱신한다."""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event) -> None:
+        """캔버스 너비에 맞춰 내부 프레임 너비를 동기화한다."""
+        self.canvas.itemconfigure(self._content_window, width=event.width)
+
+    def _bind_mousewheel(self, _event) -> None:
+        """포인터가 Split 탭 위에 있을 때 마우스휠 스크롤을 활성화한다."""
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+    def _unbind_mousewheel(self, _event) -> None:
+        """포인터가 Split 탭을 벗어나면 마우스휠 스크롤을 해제한다."""
+        self.canvas.unbind_all("<MouseWheel>")
+
+    def _on_mousewheel(self, event) -> None:
+        """마우스휠 입력으로 세로 스크롤한다."""
+        self.canvas.yview_scroll(int(-event.delta / 120), "units")
 
     @staticmethod
     def _parse_int(value: str) -> int | None:

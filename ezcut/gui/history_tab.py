@@ -67,6 +67,13 @@ class HistoryTab:
 
         ttk.Button(actions, text="새로고침", command=self.refresh).pack(side="left")
 
+        self.copy_emoji_txt_button = ttk.Button(
+            actions,
+            text="emoji.txt 복사",
+            command=self._copy_emoji_txt,
+        )
+        self.copy_emoji_txt_button.pack(side="right", padx=(0, 8))
+
         self.select_button = ttk.Button(
             actions, text="이 항목 불러오기", command=self._on_select_button
         )
@@ -115,8 +122,10 @@ class HistoryTab:
         selected = self.tree.selection()
         if selected:
             self.select_button.configure(state="normal")
+            self.copy_emoji_txt_button.configure(state="normal")
         else:
             self.select_button.configure(state="disabled")
+            self.copy_emoji_txt_button.configure(state="disabled")
 
     def _on_double_click(self, _event) -> None:
         self._notify_selected()
@@ -138,5 +147,36 @@ class HistoryTab:
         if self.on_history_selected is not None:
             self.on_history_selected(Path(output_dir))
 
-        self.status_var.set("불러오기 완료!")
+        self._show_status("불러오기 완료!")
+
+    def _copy_emoji_txt(self) -> None:
+        """선택한 항목의 emoji.txt 내용을 클립보드에 복사한다."""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item = self.tree.item(selected[0])
+        values = item.get("values")
+        if not values or len(values) < 6:
+            self._show_status("선택한 항목 정보를 읽을 수 없습니다.")
+            return
+
+        emoji_txt_path = Path(values[5]) / "emoji.txt"
+        try:
+            content = emoji_txt_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            self._show_status(f"emoji.txt를 찾을 수 없습니다: {emoji_txt_path}")
+            return
+        except OSError as error:
+            self._show_status(f"emoji.txt를 읽는 중 오류가 발생했습니다: {error}")
+            return
+
+        self.frame.clipboard_clear()
+        self.frame.clipboard_append(content)
+        self.frame.update()
+        self._show_status("emoji.txt 복사 완료!")
+
+    def _show_status(self, message: str) -> None:
+        """하단 상태 문구를 잠시 표시한다."""
+        self.status_var.set(message)
         self.frame.after(3000, lambda: self.status_var.set(""))
