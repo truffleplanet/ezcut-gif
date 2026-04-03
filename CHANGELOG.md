@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/S-P-A-N/ezcut-gif/compare/v0.3.0...v0.4.0) (2026-04-03)
+
+
+### Features
+
+* GUI 업로드 완료 후 share 안내와 진행 상태 접근성 개선 ([9d7feb3](https://github.com/S-P-A-N/ezcut-gif/commit/9d7feb3364a8f88fdf048d5b4e07bd4728872c81))
+* History 탭에서 emoji.txt 복사 버튼 추가 ([7f6b3b8](https://github.com/S-P-A-N/ezcut-gif/commit/7f6b3b89b9dd1abf72cd1e70e138378f6a69aef0))
+
+
+### Bug Fixes
+
+* Split 탭에 세로 스크롤을 추가해 작은 화면 접근성을 개선 ([25ab402](https://github.com/S-P-A-N/ezcut-gif/commit/25ab4024d7cf0139955abd19de4e08152cc87866))
+* Upload/Share progress 영역이 화면 밖으로 벗어나지 않도록 수정 ([36590cf](https://github.com/S-P-A-N/ezcut-gif/commit/36590cf67203bb6ca69db4c692027580fca2fd84))
+
 ## [0.3.0](https://github.com/S-P-A-N/ezcut-gif/compare/v0.2.0...v0.3.0) (2026-04-03)
 
 
