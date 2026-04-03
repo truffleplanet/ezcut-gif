@@ -2,35 +2,91 @@
 
 애니메이션 GIF를 N×M 그리드 타일로 분할하고, 미리보기하고, Mattermost 커스텀 이모지로 업로드하며, [Ezcut Gallery](https://github.com/S-P-A-N/ezcut-gallery)에 손쉽게 공유할 수 있는 도구입니다.
 
+## 📖 문서
+
+- [GUI 사용 가이드](gui.md)
+- [CLI 상세 가이드](cli.md)
+
 ## 요구 사항
 
 - Python 3.14+
-- [uv](https://docs.astral.sh/uv/) 또는 pip
-- Google Chrome
-  - 업로드 기능에 필요합니다.
+- [uv](https://docs.astral.sh/uv/) (권장) 또는 [pipx](https://github.com/pypa/pipx) / [pip](https://pip.pypa.io/en/stable/installation/)
+- Google Chrome (업로드 기능에 필요)
 
-## 문서
+## 설치 및 설정 (Installation)
 
-- GUI 가이드: [gui.md](gui.md)
-- CLI 가이드: [cli.md](cli.md)
+사용 환경에 따라 아래 토글을 펼쳐 설치 과정을 진행해 주세요. `uv` 도구 설치 후 `PATH` 설정이 필수적입니다.
 
-## 설치
+<details>
+<summary>Windows (winget, PowerShell)</summary>
+
+1. **uv 설치**: PowerShell에서 아래 명령어를 실행합니다.
+   ```powershell
+   winget install --id=astral-sh.uv -e
+   ```
+2. **PATH 설정**: uv로 설치한 도구들을 어디서든 실행할 수 있도록 경로를 등록합니다.
+   ```powershell
+   uv tool update-shell
+   ```
+3. **터미널 재시작**: 설정이 반영되도록 PowerShell 창을 닫고 다시 엽니다.
+4. **앱 설치**: 아래 명령어로 `ezcut`을 설치합니다.
+   ```powershell
+   uv tool install git+https://github.com/S-P-A-N/ezcut-gif.git
+   ```
+</details>
+
+<details>
+<summary>macOS (Homebrew + zsh/bash)</summary>
+
+1. **uv 설치**: 터미널에서 아래 명령어를 실행합니다.
+   ```bash
+   brew install uv
+   ```
+2. **PATH 설정**: uv로 설치한 도구들을 어디서든 실행할 수 있도록 경로를 등록합니다.
+   ```bash
+   uv tool update-shell
+   ```
+3. **환경 변수 반영**: 터미널을 재시작하거나 아래 명령어를 실행합니다.
+   ```bash
+   source ~/.zshrc  # 또는 사용 중인 쉘의 설정 파일 (~/.bashrc 등)
+   ```
+4. **앱 설치**: 아래 명령어로 `ezcut`을 설치합니다.
+   ```bash
+   uv tool install git+https://github.com/S-P-A-N/ezcut-gif.git
+   ```
+</details>
+
+### 설치 완료 확인
+설치가 완료되면 아래 두 명령어를 바로 사용할 수 있습니다.
+
+- `ezcut`: CLI 실행
+- `ezcut-gui`: GUI 실행
+
+### 버전 및 업데이트 관리
+
+설치 후 아래 명령어를 통해 버전을 확인하고 최신 상태로 유지할 수 있습니다.
+
+- `ezcut --version`: 현재 설치된 버전 확인
+- `ezcut update`: 최신 버전 확인 및 업데이트 방법 안내
+
+> [!TIP]
+> **GUI 알림**: `ezcut-gui` 실행 시 하단 상태바에 업데이트 알림이 표시됩니다. 클릭 시 업데이트 가이드를 볼 수 있습니다.
+
+> [!IMPORTANT]
+> 만약 `ezcut: command not found` 에러가 발생한다면, `uv tool update-shell` 실행 후 터미널을 완전히 종료했다가 다시 시작했는지 확인해 주세요.
+
+### 기타 설치 방법 (Alternative Methods)
+
+`uv`를 사용하지 않거나 기존 방식(`pip`, `pipx`)을 선호하는 경우 아래 명령어를 사용하세요.
 
 ```bash
-# uv로 설치 (권장)
-uv tool install git+https://github.com/S-P-A-N/ezcut-gif.git
-
-# 또는 pipx로 설치
+# pipx로 설치 (권장)
 pipx install git+https://github.com/S-P-A-N/ezcut-gif.git
 
 # 또는 pip로 설치
 pip install git+https://github.com/S-P-A-N/ezcut-gif.git
 ```
 
-설치 후 아래 두 명령어를 사용할 수 있습니다.
-
-- `ezcut`: CLI
-- `ezcut-gui`: GUI
 
 소스 저장소를 직접 실행하는 경우에는 프로젝트 루트에서 아래처럼 사용할 수 있습니다.
 
@@ -56,7 +112,6 @@ ezcut preview --last
 
 # 3) Mattermost에 이모지 업로드
 ezcut upload --last
-```
 
 # 4) 이모지를 갤러리에 공유
 ezcut share --last

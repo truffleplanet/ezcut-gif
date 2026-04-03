@@ -40,7 +40,7 @@ CI에서도 동일한 검사가 실행됩니다 (`ruff check` + `ruff format --c
 ### 코딩 컨벤션 및 개발 규칙
 
 1. **절대 경로 임포트(Absolute Imports) 지향**:
-   프로젝트 내부 모듈을 참조할 때는 되도록 최상위 패키지 기준의 절대 경로를 사용합니다. 
+   프로젝트 내부 모듈을 참조할 때는 되도록 최상위 패키지 기준의 절대 경로를 사용합니다.
    - ⭕ 권장: `from ezcut.services.history import HistoryEntry`
    - ❌ 지양: `from ..services.history import HistoryEntry` (단, 동일 폴더 내의 매우 짧은 상대 경로는 예외적으로 허용)
 
@@ -93,25 +93,43 @@ uv run python -m ezcut split input.gif
 ```text
 feat/기능-설명
 fix/버그-설명
+hotfix/긴급수정-설명
 refactor/대상-설명
 chore/작업-설명
+docs/문서-설명
 ```
 
-### 커밋 메시지
+### 커밋 메시지 (Conventional Commits)
+
+본 프로젝트는 **Release Please**를 사용하여 자동으로 버전을 올리고 변경 로그를 작성합니다. 따라서 아래 컨벤션을 **반드시** 준수해야 합니다.
 
 ```text
-feat: 새 기능 추가
-fix: 버그 수정
-refactor: 코드 구조 변경
-chore: 빌드, 설정 등 기타 변경
-docs: 문서 수정
+feat: 새로운 기능 추가        → Minor 버전 업
+fix: 버그 수정                → Patch 버전 업
+hotfix: 긴급 버그 수정        → Patch 버전 업
+docs: 문서 수정               → Patch 버전 업
+chore: 빌드, 설정 등 기타 변경  → Patch 버전 업
+refactor: 코드 구조 변경       → Patch 버전 업
 ```
+
+- **Minor 업**: `feat: ...`
+- **Patch 업**: `fix: ...`, `hotfix: ...`, `docs: ...`, `chore: ...`, `refactor: ...`
+- **Major 업**: 메시지 바디에 `BREAKING CHANGE:`를 포함하거나 `feat!: ...` 처럼 느낌표를 추가하세요.
+
+## 버전 관리 및 릴리스
+
+1. **정적 버전 관리**: 프로젝트 버전은 `pyproject.toml`의 `project.version` 필드에 정적으로 관리됩니다. Release Please가 릴리스 PR 생성 시 이 필드를 자동으로 업데이트합니다.
+2. **자동 릴리스 프로세스**:
+   - `main` 브랜치에 머지된 커밋 메시지를 바탕으로 **Release Please**가 자동으로 릴리스 PR을 생성합니다.
+   - 해당 PR이 머지되면 자동으로 GitHub Release가 생성되고 Git Tag가 생성됩니다.
+   - 이 과정에서 별도의 버전 번호 수동 수정은 필요하지 않습니다.
 
 ## Pull Request
 
 1. `main` 브랜치에서 새 브랜치를 생성합니다.
 2. 작업 완료 후 PR을 올립니다 — [PR 템플릿](.github/PULL_REQUEST_TEMPLATE.md)을 따라주세요.
-3. CI 린트가 통과해야 머지 가능합니다.
+3. **중요**: PR의 제목이나 머지될 커밋 메시지가 위 컨벤션(`feat:`, `fix:` 등)을 따라야 버전에 정상 반영됩니다.
+4. CI 린트가 통과해야 머지 가능합니다.
 
 ## 이슈
 
