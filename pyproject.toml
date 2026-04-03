@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,7 +8,7 @@ description = "GIF를 그리드로 분할하여 Mattermost 커스텀 이모지�
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.14"
-dynamic = ["version"]
+version = "0.2.0"
 keywords = ["gif", "mattermost", "emoji", "split", "grid"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -28,7 +28,7 @@ dependencies = [
     "typer>=0.24.1",
     "keyring>=25.7.0",
     "requests>=2.33.1",
-    "hatch>=1.16.5",
+    "packaging>=23.1",
 ]
 
 [project.urls]
@@ -48,15 +48,6 @@ ezcut-gui = "ezcut.gui:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ezcut"]
-
-[tool.hatch.version]
-source = "vcs"
-
-[tool.hatch.version.raw-options]
-local_scheme = "no-local-version"
-
-[tool.hatch.build.hooks.vcs]
-version-file = "ezcut/_version.py"
 
 [tool.ruff]
 line-length = 88
