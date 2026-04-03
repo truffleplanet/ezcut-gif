@@ -11,6 +11,10 @@ build/
 *.json
 *.txt
 
+# Release please files MUST be tracked
+!release-please-config.json
+!.release-please-manifest.json
+
 !ezcut/cli/assets/*.txt
 
 # Generated version file

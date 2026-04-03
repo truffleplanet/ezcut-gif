@@ -40,7 +40,7 @@ CI에서도 동일한 검사가 실행됩니다 (`ruff check` + `ruff format --c
 ### 코딩 컨벤션 및 개발 규칙
 
 1. **절대 경로 임포트(Absolute Imports) 지향**:
-   프로젝트 내부 모듈을 참조할 때는 되도록 최상위 패키지 기준의 절대 경로를 사용합니다. 
+   프로젝트 내부 모듈을 참조할 때는 되도록 최상위 패키지 기준의 절대 경로를 사용합니다.
    - ⭕ 권장: `from ezcut.services.history import HistoryEntry`
    - ❌ 지양: `from ..services.history import HistoryEntry` (단, 동일 폴더 내의 매우 짧은 상대 경로는 예외적으로 허용)
 
@@ -93,8 +93,10 @@ uv run python -m ezcut split input.gif
 ```text
 feat/기능-설명
 fix/버그-설명
+hotfix/긴급수정-설명
 refactor/대상-설명
 chore/작업-설명
+docs/문서-설명
 ```
 
 ### 커밋 메시지 (Conventional Commits)
@@ -102,21 +104,21 @@ chore/작업-설명
 본 프로젝트는 **Release Please**를 사용하여 자동으로 버전을 올리고 변경 로그를 작성합니다. 따라서 아래 컨벤션을 **반드시** 준수해야 합니다.
 
 ```text
-feat: 새로운 기능 추가 (Minor 버전 업)
-fix: 버그 수정 (Patch 버전 업)
-docs: 문서 수정 (Patch 버전 업 가능)
-chore: 빌드, 설정 등 기타 변경
-refactor: 코드 구조 변경
-perf: 성능 개선
+feat: 새로운 기능 추가        → Minor 버전 업
+fix: 버그 수정                → Patch 버전 업
+hotfix: 긴급 버그 수정        → Patch 버전 업
+docs: 문서 수정               → Patch 버전 업
+chore: 빌드, 설정 등 기타 변경  → Patch 버전 업
+refactor: 코드 구조 변경       → Patch 버전 업
 ```
 
 - **Minor 업**: `feat: ...`
-- **Patch 업**: `fix: ...`, `docs: ...` 등
+- **Patch 업**: `fix: ...`, `hotfix: ...`, `docs: ...`, `chore: ...`, `refactor: ...`
 - **Major 업**: 메시지 바디에 `BREAKING CHANGE:`를 포함하거나 `feat!: ...` 처럼 느낌표를 추가하세요.
 
 ## 버전 관리 및 릴리스
 
-1. **VCS 기반 버전 (`hatch-vcs`)**: 프로젝트 버전은 `pyproject.toml`에 고정되어 있지 않고 Git Tag를 기반으로 동적으로 결정됩니다. 로컬 개발 시에는 `uv run hatch version`으로 현재 버전을 확인할 수 있습니다.
+1. **정적 버전 관리**: 프로젝트 버전은 `pyproject.toml`의 `project.version` 필드에 정적으로 관리됩니다. Release Please가 릴리스 PR 생성 시 이 필드를 자동으로 업데이트합니다.
 2. **자동 릴리스 프로세스**:
    - `main` 브랜치에 머지된 커밋 메시지를 바탕으로 **Release Please**가 자동으로 릴리스 PR을 생성합니다.
    - 해당 PR이 머지되면 자동으로 GitHub Release가 생성되고 Git Tag가 생성됩니다.
