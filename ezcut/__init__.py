@@ -1,9 +1,6 @@
-try:
-    from ._version import version as __version__
-except ImportError:
-    try:
-        from importlib.metadata import version as _version
+import importlib.metadata
 
-        __version__ = _version("ezcut")
-    except Exception:
-        __version__ = "0.0.0-dev"
+try:
+    __version__ = importlib.metadata.version("ezcut")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0-dev"

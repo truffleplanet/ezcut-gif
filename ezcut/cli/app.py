@@ -31,7 +31,7 @@ def update_cmd() -> None:
     """앱 업데이트 방법을 안내합니다."""
     version_service = VersionService()
     current = version_service.get_current_version()
-    latest = version_service.get_latest_version()
+    latest = version_service.get_latest_version(force=True)
 
     console.print()
     console.rule("[bold cyan]Update Guide[/]")
